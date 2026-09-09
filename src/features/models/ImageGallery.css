@@ -1,6 +1,19 @@
 .image-gallery {
   min-width: 0;
 }
+.gallery-stage {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+}
+.gallery-slide {
+  position: absolute;
+  inset: 0;
+}
+.gallery-slide > .cover-image {
+  width: 100%;
+  height: 100%;
+}
 .image-gallery .detail-cover img {
   object-fit: contain;
 }

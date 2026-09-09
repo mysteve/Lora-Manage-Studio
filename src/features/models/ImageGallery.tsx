@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Copy } from 'lucide-react';
+import { easeOut } from '../../components/Motion';
 import { CoverImage } from '../../components/ui';
+import { useReducedMotion } from '../../lib/useReducedMotion';
 import type { Cover } from '../../types/models';
 import './ImageGallery.css';
 
@@ -52,12 +55,35 @@ export function ImageGallery({
     ),
   );
   const currentIndex = Math.min(index, Math.max(0, gallery.length - 1));
+  const [direction, setDirection] = useState(1);
+  const reduced = useReducedMotion();
   const current = gallery[currentIndex];
   const rows = metadataRows(current?.meta);
-  const move = (delta: number) => setIndex((currentIndex + delta + gallery.length) % gallery.length);
+  const move = (delta: number) => {
+    setDirection(delta);
+    setIndex((previous) => (Math.min(previous, gallery.length - 1) + delta + gallery.length) % gallery.length);
+  };
   return (
     <section className="image-gallery" aria-label="模型示例图">
-      <CoverImage className="detail-cover" cover={current} alt={`${name} 示例图 ${currentIndex + 1}`} />
+      <div className="detail-cover gallery-stage">
+        <AnimatePresence initial={false} custom={reduced ? 0 : direction}>
+          <motion.div
+            key={`${current?.url}:${current?.localPath}:${currentIndex}`}
+            className="gallery-slide"
+            custom={reduced ? 0 : direction}
+            variants={{
+              enter: (offset: number) => ({ opacity: offset ? 0 : 1, x: offset * 20 }),
+              exit: (offset: number) => ({ opacity: offset ? 0 : 1, x: offset * -20 }),
+            }}
+            initial="enter"
+            animate={{ opacity: 1, x: 0 }}
+            exit="exit"
+            transition={{ duration: reduced ? 0 : 0.2, ease: easeOut }}
+          >
+            <CoverImage cover={current} alt={`${name} 示例图 ${currentIndex + 1}`} />
+          </motion.div>
+        </AnimatePresence>
+      </div>
       {gallery.length > 1 && (
         <>
           <div className="gallery-navigation">
@@ -78,7 +104,10 @@ export function ImageGallery({
                 className={i === currentIndex ? 'chosen' : ''}
                 aria-pressed={i === currentIndex}
                 aria-label={`查看图片 ${i + 1}`}
-                onClick={() => setIndex(i)}
+                onClick={() => {
+                  setDirection(i > currentIndex ? 1 : -1);
+                  setIndex(i);
+                }}
               >
                 <CoverImage cover={image} alt={`示例图 ${i + 1}`} />
               </button>
