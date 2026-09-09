@@ -45,6 +45,7 @@ let settings: Settings = {
   proxyMode: 'system',
   proxyUrl: '',
   safeContent: true,
+  setupDismissed: false,
 };
 let library: LibraryEntry[] = models.map((m, i) => ({
   id: `preview-${i}`,
@@ -95,6 +96,9 @@ const tasks: DownloadTask[] = models.slice(0, 5).map((m, i) => ({
 export async function previewCall(command: string, args: Raw): Promise<unknown> {
   switch (command) {
     case 'get_settings':
+      return settings;
+    case 'dismiss_setup':
+      settings = { ...settings, setupDismissed: true };
       return settings;
     case 'save_settings':
       settings = args.settings;
@@ -189,9 +193,15 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
       return '开发环境示例数据';
     case 'cache_cover':
       return { url: args.url, localPath: args.url };
+    case 'get_base_models':
+      return [...new Set(models.flatMap((model) => model.versions.map((version) => version.baseModel)))];
     case 'search_models':
       return {
-        items: models.filter((m) => m.name.toLowerCase().includes((args.query ?? '').toLowerCase())),
+        items: models.filter(
+          (m) =>
+            m.name.toLowerCase().includes((args.query ?? '').toLowerCase()) &&
+            (!args.baseModel || m.versions.some((version) => version.baseModel === args.baseModel)),
+        ),
         nextCursor: null,
       };
     case 'model_details':

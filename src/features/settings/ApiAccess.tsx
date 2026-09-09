@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, Eye, EyeOff, Loader2, LogIn, Save, ShieldCheck } from 'lucide-react';
 import { call, desktop, external } from '../../lib/api';
+import { Modal } from '../../components/ui';
 
 const SHOW_WEBSITE_LOGIN = false;
 
@@ -20,6 +21,8 @@ export function ApiAccess({ notify }: { notify: (message: string, error?: boolea
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [token, setToken] = useState('');
   const [visible, setVisible] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const closeGuide = useCallback(() => setShowGuide(false), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [login, setLogin] = useState<Login | null>(null);
@@ -174,16 +177,42 @@ export function ApiAccess({ notify }: { notify: (message: string, error?: boolea
           </button>
         )}
       </div>
-      <div className="api-key-guide field-help">
-        <strong>如何获取 API 密钥？</strong>
-        <ol>
-          <li>自行在浏览器打开 civitai.red/user/account，登录你的 Civitai 账号。</li>
-          <li>在账户设置中找到 API Keys（API 密钥），创建一个新密钥，名称可填 LoRA Studio。</li>
-          <li>复制生成的完整密钥。</li>
-          <li>回到这里粘贴到输入框，点击保存密钥即可。</li>
-        </ol>
-        <p>这里使用个人 API Key，无需注册 OAuth 应用。</p>
-      </div>
+      <button type="button" className="link-button api-key-help" onClick={() => setShowGuide(true)}>
+        如何获取 API 密钥
+      </button>
+      {showGuide && (
+        <Modal title="如何获取 API 密钥" onClose={closeGuide} portal>
+          <div className="api-key-guide">
+            <ol>
+              <li>
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => void open('https://civitai.red/user/account')}
+                >
+                  打开 Civitai 账户设置 <ExternalLink size={13} />
+                </button>
+                ，登录你的账号。
+              </li>
+              <li>找到 API Keys（API 密钥），创建新密钥，名称可填 LoRA Studio。</li>
+              <li>复制生成的完整密钥。</li>
+              <li>回到设置窗口，粘贴到输入框并点击保存密钥。</li>
+            </ol>
+            <p>使用个人 API Key 即可，无需注册 OAuth 应用。</p>
+            <p className="field-help">
+              <ShieldCheck size={13} />
+              {desktop
+                ? '密钥保存在 Windows 凭据管理器中，保存后立即生效。'
+                : '浏览器预览不会保存密钥，请在桌面应用中设置。'}
+            </p>
+          </div>
+          <div className="modal-actions">
+            <button className="primary" onClick={closeGuide}>
+              知道了
+            </button>
+          </div>
+        </Modal>
+      )}
       {SHOW_WEBSITE_LOGIN && (
         <div className="api-login">
           <div>
@@ -231,12 +260,6 @@ export function ApiAccess({ notify }: { notify: (message: string, error?: boolea
           {error}
         </p>
       )}
-      <p className="field-help">
-        <ShieldCheck size={13} />
-        {desktop
-          ? '凭据仅保存在 Windows 凭据管理器中，保存密钥立即生效。'
-          : '浏览器预览不会保存密钥，请在桌面应用中设置。'}
-      </p>
     </div>
   );
 }

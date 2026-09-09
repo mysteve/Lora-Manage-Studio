@@ -91,6 +91,12 @@ impl Database {
     pub fn settings(&self) -> Settings {
         self.get("settings", "main").unwrap_or_default()
     }
+    pub fn dismiss_setup(&self) -> Result<Settings, String> {
+        let mut settings = self.settings();
+        settings.setup_dismissed = true;
+        self.put("settings", "main", &settings)?;
+        Ok(settings)
+    }
     pub fn recover(&self) -> Result<(), String> {
         for mut task in self.list::<DownloadTask>("downloads")? {
             if ["queued", "downloading", "verifying"].contains(&task.status.as_str()) {
@@ -107,6 +113,25 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn dismissing_setup_persists_without_changing_existing_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("db.sqlite");
+        let original = serde_json::json!({
+            "loraDir": "D:\\existing-models", "comfyRoot": "",
+            "proxyMode": "manual", "proxyUrl": "http://127.0.0.1:7890", "safeContent": false
+        });
+        {
+            let db = Database::open(&path).unwrap();
+            db.put("settings", "main", &original).unwrap();
+            assert!(!db.settings().setup_dismissed);
+            assert!(db.dismiss_setup().unwrap().setup_dismissed);
+        }
+        let db = Database::open(&path).unwrap();
+        let mut expected = original;
+        expected["setupDismissed"] = true.into();
+        assert_eq!(serde_json::to_value(db.settings()).unwrap(), expected);
+    }
     #[test]
     fn interrupted_tasks_recover_as_paused() {
         let d = tempfile::tempdir().unwrap();

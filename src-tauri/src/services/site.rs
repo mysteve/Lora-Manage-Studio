@@ -76,6 +76,42 @@ pub async fn api(
     }
     Ok(data)
 }
+
+// 分类接口公开可用，无需读取或发送账号凭据。
+pub async fn base_models(settings: &Settings) -> Result<Vec<String>, String> {
+    let response = client(settings)?
+        .get(format!("{ORIGIN}/api/v1/enums"))
+        .timeout(Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(network_error)?;
+    if !response.status().is_success() {
+        return Err(status_error(response.status()));
+    }
+    let data = response
+        .json::<Value>()
+        .await
+        .map_err(|_| "网站响应不是有效的基础模型分类数据".to_string())?;
+    parse_base_models(&data)
+}
+
+fn parse_base_models(data: &Value) -> Result<Vec<String>, String> {
+    let values: Vec<String> = serde_json::from_value(data["BaseModel"].clone())
+        .map_err(|_| "网站未返回有效的基础模型分类列表".to_string())?;
+    let mut models = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for value in values {
+        let value = value.trim();
+        if !value.is_empty() && seen.insert(value.to_owned()) {
+            models.push(value.to_owned());
+        }
+    }
+    if models.is_empty() {
+        return Err("网站返回的基础模型分类列表为空，请稍后重试".into());
+    }
+    Ok(models)
+}
+
 fn filter_safe_images(v: &mut Value) {
     match v {
         Value::Object(map) => {
@@ -305,6 +341,36 @@ pub fn safe_download_url(input: &str) -> Result<Url, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn base_models_include_new_and_legacy_values_in_site_order() {
+        let data = serde_json::json!({
+            "ActiveBaseModel": ["Future Model"],
+            "BaseModel": [" Future Model ", "SD 1.5", "Future Model", "", " "]
+        });
+        assert_eq!(
+            parse_base_models(&data).unwrap(),
+            ["Future Model", "SD 1.5"]
+        );
+    }
+    #[test]
+    fn base_models_reject_missing_empty_and_malformed_lists() {
+        for data in [
+            serde_json::json!({}),
+            serde_json::json!({"BaseModel": []}),
+            serde_json::json!({"BaseModel": [" "]}),
+            serde_json::json!({"BaseModel": "SD 1.5"}),
+            serde_json::json!({"BaseModel": ["SD 1.5", null]}),
+        ] {
+            assert!(parse_base_models(&data).is_err());
+        }
+    }
+    #[tokio::test]
+    #[ignore = "需要连接 civitai.red，按需手动执行"]
+    async fn fetch_base_models_from_site() {
+        let models = base_models(&Settings::default()).await.unwrap();
+        assert!(!models.is_empty());
+        assert!(models.iter().all(|model| !model.trim().is_empty()));
+    }
     #[test]
     fn api_errors_are_actionable() {
         assert!(status_error(StatusCode::UNAUTHORIZED).contains("Token"));

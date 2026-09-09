@@ -35,7 +35,7 @@ export function SettingsPanel({
     }
   };
   return (
-    <Modal title="设置" onClose={onClose} wide>
+    <Modal title="设置" onClose={onClose} wide className="settings-modal">
       <div className="settings-content">
         <section>
           <h2>
@@ -66,15 +66,6 @@ export function SettingsPanel({
           <p className="field-help">
             选择包含 main.py 的 ComfyUI 根目录，也支持选择便携版外层文件夹。只绑定本地目录，无需启动 ComfyUI。
           </p>
-          <div className="settings-storage">
-            <strong>LoRA 保存目录</strong>
-            <p>
-              {draft.comfyRoot === settings.comfyRoot && settings.loraDir
-                ? settings.loraDir
-                : '绑定后自动使用根目录下的 models/loras'}
-            </p>
-            <small>保存时会自动创建缺失的 models/loras 文件夹，下载完成后直接安装到这里。</small>
-          </div>
         </section>
         <section>
           <h2>
@@ -113,10 +104,25 @@ export function SettingsPanel({
         <section className="settings-storage">
           <strong>本地资料存储位置</strong>
           <p>{location || '应用数据目录'}</p>
-          <small>SQLite 数据库、封面缓存与个人配方保存在这里。模型文件位于上面指定的 LoRA 目录。</small>
+          <small>数据库、封面缓存与个人配方保存在这里。</small>
         </section>
       </div>
       <div className="modal-actions">
+        {!settings.comfyRoot && !settings.setupDismissed && (
+          <button
+            disabled={!!busy}
+            onClick={() =>
+              perform('skip', async () => {
+                const saved = await call<Settings>('dismiss_setup');
+                await onSaved(saved);
+                onClose();
+                notify('已跳过，之后可从侧栏打开设置');
+              })
+            }
+          >
+            {busy === 'skip' && <Loader2 size={17} className="spin" />}暂不设置
+          </button>
+        )}
         <button onClick={onClose}>关闭</button>
         <button
           className="primary"

@@ -817,6 +817,26 @@ button.card-open:active {
 .discovery-filters > .text-button {
   margin-left: -15px;
 }
+.base-model-filter {
+  max-width: 100%;
+}
+.base-model-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.base-model-filter select {
+  width: 200px;
+  max-width: 100%;
+}
+.base-model-filter-error {
+  max-width: 360px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #eeb3ad;
+  overflow-wrap: anywhere;
+}
 .link-bar {
   display: flex;
   align-items: center;
@@ -1471,6 +1491,20 @@ button.card-open:active {
   padding-top: 20px;
   border-top: 1px solid var(--border);
 }
+.modal.settings-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.settings-modal > .modal-title,
+.settings-modal > .modal-actions {
+  flex-shrink: 0;
+}
+.settings-modal > .settings-content {
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 8px;
+}
 .settings-content section + section {
   margin-top: 23px;
   padding-top: 22px;
@@ -1517,15 +1551,37 @@ button.card-open:active {
   flex-wrap: wrap;
   margin-top: 12px;
 }
-.api-key-guide strong {
-  color: var(--text);
+button.link-button {
+  display: inline-flex;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+button.link-button:hover {
+  background: transparent;
+  color: #e2ffa1;
+}
+button.api-key-help {
+  margin-top: 14px;
+  font-size: 12px;
+}
+.api-key-guide {
+  color: #cdd2d7;
+  font-size: 13px;
+  line-height: 1.8;
 }
 .api-key-guide ol {
   margin: 8px 0;
   padding-left: 20px;
 }
 .api-key-guide li + li {
-  margin-top: 4px;
+  margin-top: 10px;
 }
 .api-key-guide p {
   margin: 0;

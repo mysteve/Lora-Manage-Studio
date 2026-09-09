@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Image as ImageIcon, X, Loader2, AlertCircle, Layers, Search } from 'lucide-react';
 import { asset, call } from '../lib/api';
 import type { Cover } from '../types/models';
@@ -120,11 +121,15 @@ export function Modal({
   children,
   onClose,
   wide = false,
+  portal = false,
+  className = '',
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  portal?: boolean;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -132,10 +137,18 @@ export function Modal({
     const el = ref.current;
     el?.querySelector<HTMLElement>('input,button,select,textarea')?.focus();
     const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (dialogs[dialogs.length - 1] !== el) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
       if (e.key === 'Tab' && el) {
         const nodes = Array.from(
-          el.querySelectorAll<HTMLElement>('button:not([disabled]),input,select,textarea,[tabindex="0"]'),
+          el.querySelectorAll<HTMLElement>(
+            'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]',
+          ),
         );
         const first = nodes[0],
           last = nodes[nodes.length - 1];
@@ -154,7 +167,7 @@ export function Modal({
       previous?.focus();
     };
   }, [onClose]);
-  return (
+  const dialog = (
     <div
       className="modal-backdrop"
       onMouseDown={(e) => {
@@ -163,7 +176,7 @@ export function Modal({
     >
       <div
         ref={ref}
-        className={`modal ${wide ? 'wide' : ''}`}
+        className={`modal ${wide ? 'wide' : ''} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -178,6 +191,7 @@ export function Modal({
       </div>
     </div>
   );
+  return portal ? createPortal(dialog, document.body) : dialog;
 }
 export function SearchInput({
   value,

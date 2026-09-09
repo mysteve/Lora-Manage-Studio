@@ -30,6 +30,7 @@ import { Detail } from '../features/models/Detail';
 import { AddLocalModel } from '../features/models/AddLocalModel';
 import { SettingsPanel } from '../features/settings/SettingsPanel';
 import { WindowControls } from '../components/WindowControls';
+import { BaseModelFilter } from '../features/discover/BaseModelFilter';
 import type {
   DownloadTask,
   LibraryEntry,
@@ -58,6 +59,7 @@ const subtitles: Record<Page, string> = {
 const defaultSettings: Settings = {
   loraDir: '',
   comfyRoot: '',
+  setupDismissed: false,
   proxyMode: 'system',
   proxyUrl: '',
   safeContent: true,
@@ -130,7 +132,7 @@ export default function App() {
       setSettings(s);
       setLibrary(l);
       setTasks(t);
-      if (!s.comfyRoot) setShowSettings(true);
+      if (!s.comfyRoot && !s.setupDismissed) setShowSettings(true);
     } catch (e) {
       setInitialError(String(e instanceof Error ? e.message : e));
     } finally {
@@ -604,25 +606,11 @@ export default function App() {
                   </button>
                 </div>
                 <div className="discovery-filters">
-                  <label className="inline-label">
-                    基础模型
-                    <select value={remoteBase} onChange={(e) => setRemoteBase(e.target.value)}>
-                      <option value="">全部</option>
-                      {[
-                        'SDXL 1.0',
-                        'SD 1.5',
-                        'Flux.1 D',
-                        'Flux.1 S',
-                        'Pony',
-                        'Illustrious',
-                        'NoobAI',
-                        'Qwen',
-                        'ZImageTurbo',
-                      ].map((b) => (
-                        <option key={b}>{b}</option>
-                      ))}
-                    </select>
-                  </label>
+                  <BaseModelFilter
+                    value={remoteBase}
+                    onChange={setRemoteBase}
+                    reloadKey={JSON.stringify([settings.proxyMode, settings.proxyUrl])}
+                  />
                   <label className="inline-label">
                     排序
                     <select value={sort} onChange={(e) => setSort(e.target.value)}>

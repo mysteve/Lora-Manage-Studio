@@ -1,6 +1,7 @@
 export interface Settings {
   loraDir: string;
   comfyRoot: string;
+  setupDismissed: boolean;
   proxyMode: string;
   proxyUrl: string;
   safeContent: boolean;

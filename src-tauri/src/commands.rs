@@ -18,6 +18,10 @@ pub fn get_settings(state: Shared<'_>) -> Settings {
     settings
 }
 #[tauri::command]
+pub fn dismiss_setup(state: Shared<'_>) -> Result<Settings, String> {
+    state.db.dismiss_setup()
+}
+#[tauri::command]
 pub fn data_location(state: Shared<'_>) -> String {
     state.data_dir.to_string_lossy().into()
 }
@@ -68,6 +72,10 @@ pub async fn poll_login(state: Shared<'_>, session_id: String) -> Result<auth::L
 #[tauri::command]
 pub async fn cancel_login(session_id: String) {
     auth::cancel(&session_id).await
+}
+#[tauri::command]
+pub async fn get_base_models(state: Shared<'_>) -> Result<Vec<String>, String> {
+    site::base_models(&state.db.settings()).await
 }
 #[tauri::command]
 pub async fn search_models(

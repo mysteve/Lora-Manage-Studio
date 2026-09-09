@@ -76,6 +76,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
+            commands::dismiss_setup,
             commands::save_settings,
             commands::save_token,
             commands::has_token,
@@ -83,6 +84,7 @@ pub fn run() {
             commands::start_login,
             commands::poll_login,
             commands::cancel_login,
+            commands::get_base_models,
             commands::search_models,
             commands::resolve_link,
             commands::model_details,
