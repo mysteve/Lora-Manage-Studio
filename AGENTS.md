@@ -27,7 +27,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | --- | --- |
 | `src/main.tsx` | React 挂载、StrictMode、全局 MotionConfig |
 | `src/app/App.tsx` | 布局、导航、页面组合、跨页面状态和桌面事件订阅 |
-| `src/features/models/` | 模型导入、详情、资料编辑、触发词组合和预览图 |
+| `src/features/models/` | 模型导入、详情、资料编辑、触发词组合和预览图；`ImageGallery` 负责示例图切换及图片生成参数 |
 | `src/features/discover/` | 网站内容分类、基础模型筛选及相关组件 |
 | `src/features/settings/` | ComfyUI 目录、代理、API 密钥等设置 |
 | `src/components/ui.tsx` | Modal、CoverImage、SearchInput、Badge、Empty、Loading、ErrorBox |
@@ -72,6 +72,8 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 - 对重要行为增加有意义的测试。前端测试与实现相邻，命名为 `*.test.ts` 或 `*.test.tsx`；Rust 测试放在模块的 `#[cfg(test)]` 中。不要给简单样式或文字调整添加重复实现细节的测试。
 
 ## 前后端边界与用户数据
+
+- 基础模型分类由 `services/classification_cache.rs` 缓存到 SQLite，有效期 3 天；`get_base_models` 的 `forceRefresh` 用于手动刷新，只有成功请求才更新时间。
 
 - 业务命令通过 `src/lib/api.ts` 的 `call<T>()` 调用；文件选择、剪贴板、外链、文件定位与封面地址转换也优先使用该适配层。窗口 API 和事件订阅按现有专门组件与生命周期处理。
 - 新增或修改命令时同步检查 Rust 实现、`lib.rs` 注册、两端类型，以及需要支持的开发预览分支；保持字段名、可空字段和序列化约定一致。

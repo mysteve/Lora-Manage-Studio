@@ -1,0 +1,55 @@
+.base-model-combobox {
+  position: relative;
+  width: 200px;
+  min-width: 0;
+}
+.base-model-input-wrap {
+  position: relative;
+}
+.base-model-input-wrap input {
+  width: 100%;
+  padding-right: 30px;
+}
+.base-model-input-wrap > svg {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  translate: 0 -50%;
+  pointer-events: none;
+}
+.base-model-popup {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  background: var(--panel, #1c1f21);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 8px 24px #0006;
+}
+.base-model-popup [role='listbox'] {
+  position: relative;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.base-model-popup [role='option'] {
+  padding: 9px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.base-model-popup [role='option']:hover,
+.base-model-popup .highlighted {
+  background: var(--border);
+}
+.base-model-popup [aria-selected='true'] {
+  color: var(--accent);
+}
+.base-model-popup p {
+  font-size: 12px;
+  padding: 8px;
+  margin: 0;
+}

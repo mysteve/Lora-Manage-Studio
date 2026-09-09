@@ -74,8 +74,15 @@ pub async fn cancel_login(session_id: String) {
     auth::cancel(&session_id).await
 }
 #[tauri::command]
-pub async fn get_base_models(state: Shared<'_>) -> Result<Vec<String>, String> {
-    site::base_models(&state.db.settings()).await
+pub async fn get_base_models(
+    state: Shared<'_>,
+    force_refresh: Option<bool>,
+) -> Result<Vec<String>, String> {
+    let settings = state.db.settings();
+    crate::services::classification_cache::get(&state.db, force_refresh.unwrap_or(false), || {
+        site::base_models(&settings)
+    })
+    .await
 }
 #[tauri::command]
 pub async fn get_model_tags(state: Shared<'_>, query: String) -> Result<Vec<String>, String> {

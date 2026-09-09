@@ -72,6 +72,7 @@ export default function App() {
   const [page, setPage] = useState<Page>('library');
   const [settings, setSettings] = useState(defaultSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [savingSafeContent, setSavingSafeContent] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [addLocalOpen, setAddLocalOpen] = useState(false);
   const [link, setLink] = useState('');
@@ -653,13 +654,33 @@ export default function App() {
                           <option value="Highest Rated">评分最高</option>
                         </select>
                       </label>
-                      <Badge tone="accent">LoRA</Badge>
-                      <span className="muted">
-                        {settings.safeContent ? '安全内容已开启' : '包含站点允许的全部内容'}
-                      </span>
-                      <button className="text-button" onClick={() => setShowSettings(true)}>
-                        调整
-                      </button>
+                      <label className="safe-content-toggle">
+                        <span>安全内容</span>
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          aria-label="安全内容"
+                          checked={settings.safeContent}
+                          disabled={savingSafeContent || initializing}
+                          onChange={async (event) => {
+                            const safeContent = event.target.checked;
+                            setSavingSafeContent(true);
+                            try {
+                              const saved = await call<Settings>('save_settings', {
+                                settings: { ...settings, safeContent },
+                              });
+                              setSettings(saved);
+                              setSearchResult({ items: [], nextCursor: null });
+                              await doSearch();
+                            } catch (error) {
+                              notify(String(error), true);
+                            } finally {
+                              setSavingSafeContent(false);
+                            }
+                          }}
+                        />
+                        <span className="safe-content-track" aria-hidden="true" />
+                      </label>
                     </div>
                     <CategoryFilter
                       value={remoteTag}

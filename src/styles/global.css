@@ -2010,3 +2010,56 @@ button.api-key-help {
     scroll-behavior: auto !important;
   }
 }
+
+.safe-content-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  cursor: pointer;
+  font-size: 12px;
+}
+.safe-content-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.safe-content-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 20px;
+  background: var(--border);
+  transition: background 160ms;
+}
+.safe-content-track::after {
+  content: '';
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 3px;
+  border-radius: 50%;
+  background: #f1f3f0;
+  transition: transform 160ms;
+}
+.safe-content-toggle input:checked + .safe-content-track {
+  background: var(--accent);
+}
+.safe-content-toggle input:checked + .safe-content-track::after {
+  transform: translateX(16px);
+  background: #20251a;
+}
+.safe-content-toggle input:focus-visible + .safe-content-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.safe-content-toggle:has(input:disabled) {
+  opacity: 0.55;
+  cursor: wait;
+}
+@media (prefers-reduced-motion: reduce) {
+  .safe-content-track,
+  .safe-content-track::after {
+    transition: none;
+  }
+}

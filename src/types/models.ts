@@ -7,6 +7,7 @@ export interface Settings {
   safeContent: boolean;
 }
 export interface Cover {
+  meta?: Record<string, unknown> | null;
   url: string;
   localPath: string;
 }

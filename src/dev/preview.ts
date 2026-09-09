@@ -36,7 +36,7 @@ const models: RemoteModel[] = (data as Raw[]).map((m) => ({
     })),
     images: (v.images ?? [])
       .filter((i: Raw) => i.type === 'image')
-      .map((i: Raw) => ({ url: i.url, localPath: '' })),
+      .map((i: Raw) => ({ url: i.url, localPath: '', meta: i.meta })),
   })),
 }));
 let settings: Settings = {

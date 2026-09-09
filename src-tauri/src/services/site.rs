@@ -220,6 +220,7 @@ pub fn version(v: &Value, model_id: u64) -> ModelVersion {
                     .map(|i| Cover {
                         url: text(i, "url"),
                         local_path: String::new(),
+                        meta: i.get("meta").filter(|v| v.is_object()).cloned(),
                     })
                     .collect()
             })
@@ -382,6 +383,26 @@ pub fn safe_download_url(input: &str) -> Result<Url, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn image_metadata_survives_parsing_and_old_covers_remain_readable() {
+        let parsed = version(
+            &serde_json::json!({"images": [
+                {"url": "https://example.com/a.png", "meta": {"prompt": "landscape", "seed": 0}},
+                {"url": "https://example.com/b.png", "meta": null}
+            ]}),
+            1,
+        );
+        assert_eq!(parsed.images[0].meta.as_ref().unwrap()["seed"], 0);
+        assert_eq!(
+            parsed.images[0].meta.as_ref().unwrap()["prompt"],
+            "landscape"
+        );
+        assert!(parsed.images[1].meta.is_none());
+        let old: Cover =
+            serde_json::from_value(serde_json::json!({"url":"old", "localPath":"cached.png"}))
+                .unwrap();
+        assert!(old.meta.is_none());
+    }
     #[test]
     fn model_tags_preserve_site_names_and_allow_no_search_matches() {
         let data = serde_json::json!({"items": [

@@ -41,6 +41,8 @@ pub struct SourceFile {
 pub struct Cover {
     pub url: String,
     pub local_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Value>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]

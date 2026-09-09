@@ -19,7 +19,8 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import { ask, call, chooseImage, copy, external, reveal } from '../../lib/api';
-import { Badge, CoverImage, Loading, Modal } from '../../components/ui';
+import { Badge, Loading, Modal } from '../../components/ui';
+import { ImageGallery } from './ImageGallery';
 import { TriggerPreviews } from './TriggerPreviews';
 import { blankRecipe, bytes, combine, modelTriggerWords, owner, parseTriggerWords } from '../../lib/utils';
 import type { LibraryEntry, ModelVersion, Recipe, RemoteModel, Settings } from '../../types/models';
@@ -183,35 +184,28 @@ export function Detail({
       </header>
       <div className="detail-columns">
         <div className="detail-left">
-          <CoverImage className="detail-cover" cover={entry?.cover ?? version?.images[0]} alt={name} />
-          <div className="thumbnail-row">
-            {version?.images.slice(0, 3).map((c, i) => (
-              <button
-                key={c.url}
-                disabled={!entry || !!busy}
-                className={entry?.cover.url === c.url ? 'chosen' : ''}
-                aria-label={`选择封面 ${i + 1}`}
-                onClick={() => changeCover('remote', c.url)}
-              >
-                <CoverImage cover={c} alt={`封面 ${i + 1}`} />
-              </button>
-            ))}
-            {entry && (
-              <button
-                className="cover-upload"
-                disabled={!!busy}
-                onClick={() =>
-                  perform('cover-picker', async () => {
-                    const image = await chooseImage();
-                    if (image) await changeCover('local', image);
-                  })
-                }
-              >
-                <ImagePlus size={21} />
-                <span>{entry.cover.localPath || entry.cover.url ? '更换封面' : '添加封面'}</span>
-              </button>
-            )}
-          </div>
+          <ImageGallery
+            key={`${selection.model.id}:${version?.id ?? entry?.id}`}
+            images={version?.images ?? []}
+            cover={entry?.cover}
+            name={name}
+            onCopy={copyText}
+            onSetCover={entry ? (url) => changeCover('remote', url) : undefined}
+            busy={!!busy}
+          />
+          {entry && (
+            <button
+              disabled={!!busy}
+              onClick={() =>
+                perform('cover-picker', async () => {
+                  const image = await chooseImage();
+                  if (image) await changeCover('local', image);
+                })
+              }
+            >
+              <ImagePlus size={21} /> 更换本地封面
+            </button>
+          )}
           {entry?.customCover && (
             <button className="text-button" disabled={!!busy} onClick={() => changeCover('reset')}>
               {version?.images.length ? '恢复网站默认封面' : '移除自定义封面'}

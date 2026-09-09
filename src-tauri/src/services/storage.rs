@@ -205,6 +205,7 @@ pub async fn cache_image(state: &AppState, input: &str) -> Result<Cover, String>
         return Ok(Cover {
             url: input.into(),
             local_path: path.to_string_lossy().into(),
+            ..Default::default()
         });
     }
     let resp = site::client(&state.db.settings())?
@@ -231,6 +232,7 @@ pub async fn cache_image(state: &AppState, input: &str) -> Result<Cover, String>
     Ok(Cover {
         url: input.into(),
         local_path,
+        ..Default::default()
     })
 }
 pub async fn import_image(state: &AppState, path: &str) -> Result<Cover, String> {
@@ -249,6 +251,7 @@ pub async fn import_image(state: &AppState, path: &str) -> Result<Cover, String>
     Ok(Cover {
         url: String::new(),
         local_path: save_image(bytes, dest).await?,
+        ..Default::default()
     })
 }
 pub async fn enrich(
@@ -624,6 +627,7 @@ mod tests {
             cover: Cover {
                 url: String::new(),
                 local_path: "mine.png".into(),
+                ..Default::default()
             },
             ..Default::default()
         };
