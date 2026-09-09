@@ -78,6 +78,8 @@ pub struct LibraryEntry {
     pub modified: u64,
     pub sha256: String,
     pub name: String,
+    #[serde(default)]
+    pub trigger_words: Vec<String>,
     pub author: String,
     pub base_model: String,
     pub tags: Vec<String>,

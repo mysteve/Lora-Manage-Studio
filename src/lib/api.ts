@@ -2,12 +2,13 @@ import { invoke, isTauri, convertFileSrc } from '@tauri-apps/api/core';
 import { open, confirm } from '@tauri-apps/plugin-dialog';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
+import { isAllowedExternalUrl } from './urls';
 export const desktop = isTauri();
 export const preview = import.meta.env.DEV && new URLSearchParams(location.search).has('preview');
 export async function call<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
   if (desktop) return invoke<T>(command, args);
   if (preview) {
-    const { previewCall } = await import('./preview');
+    const { previewCall } = await import('../dev/preview');
     return previewCall(command, args) as Promise<T>;
   }
   throw new Error('请在 LoRA Studio 桌面窗口中使用。浏览器仅用于前端开发。');
@@ -37,7 +38,7 @@ export async function ask(message: string) {
     : window.confirm(message);
 }
 export async function external(url: string) {
-  if (!/^https:\/\/civitai\.(red|com)\//.test(url)) throw new Error('外部链接不受支持');
+  if (!isAllowedExternalUrl(url)) throw new Error('外部链接不受支持');
   if (desktop) await openUrl(url);
   else window.open(url, '_blank', 'noopener,noreferrer');
 }

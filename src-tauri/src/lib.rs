@@ -1,10 +1,9 @@
 pub mod commands;
-pub mod db;
-pub mod downloads;
-pub mod site;
-pub mod storage;
+pub mod persistence;
+pub mod services;
 pub mod types;
-pub mod workspace;
+
+use persistence::db;
 
 use std::{
     collections::HashMap,
@@ -80,6 +79,10 @@ pub fn run() {
             commands::save_settings,
             commands::save_token,
             commands::has_token,
+            commands::auth_status,
+            commands::start_login,
+            commands::poll_login,
+            commands::cancel_login,
             commands::search_models,
             commands::resolve_link,
             commands::model_details,

@@ -24,12 +24,12 @@ import {
   HardDrive,
   Loader2,
 } from 'lucide-react';
-import { ask, call, desktop, preview, reveal } from './api';
-import { Badge, CoverImage, Empty, ErrorBox, Loading, Modal, SearchInput } from './components';
-import { bytes, count, matchesEntry, statusLabels } from './utils';
-import { Detail } from './Detail';
-import { SettingsPanel } from './SettingsPanel';
-import { WindowControls } from './WindowControls';
+import { ask, call, desktop, preview, reveal } from '../lib/api';
+import { Badge, CoverImage, Empty, ErrorBox, Loading, Modal, SearchInput } from '../components/ui';
+import { bytes, count, matchesEntry, statusLabels } from '../lib/utils';
+import { Detail } from '../features/models/Detail';
+import { SettingsPanel } from '../features/settings/SettingsPanel';
+import { WindowControls } from '../components/WindowControls';
 import type {
   DownloadTask,
   LibraryEntry,
@@ -39,7 +39,7 @@ import type {
   ScanProgress,
   SearchResult,
   Settings,
-} from './types';
+} from '../types/models';
 
 const pageTitles: Record<Page, string> = {
   library: '我的模型',

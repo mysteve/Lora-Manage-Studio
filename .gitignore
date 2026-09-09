@@ -6,8 +6,8 @@ src-tauri/gen/schemas/
 .test-data/
 *.log
 *.tsbuildinfo
-app/
-release/
+/app/
+/release/
 .env
 .env.*
 !.env.example

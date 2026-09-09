@@ -1,4 +1,8 @@
-use crate::{site, storage, types::*, AppState};
+use crate::{
+    services::{site, storage},
+    types::*,
+    AppState,
+};
 use futures_util::StreamExt;
 use reqwest::{header, StatusCode};
 use std::{
@@ -265,7 +269,7 @@ async fn transfer(
     if offset > 0 {
         request = request.header(header::RANGE, format!("bytes={offset}-"));
     }
-    if let Some(token) = site::token() {
+    if let Some(token) = super::auth::token(&state.db.settings()).await? {
         request = request.bearer_auth(token)
     }
     let mut response = request.send().await.map_err(site::network_error)?;
@@ -282,7 +286,7 @@ async fn transfer(
         }
         let _ = tokio::fs::remove_file(&part).await;
         let mut request = cli.get(url).header(header::ACCEPT_ENCODING, "identity");
-        if let Some(token) = site::token() {
+        if let Some(token) = super::auth::token(&state.db.settings()).await? {
             request = request.bearer_auth(token)
         }
         response = request.send().await.map_err(site::network_error)?;

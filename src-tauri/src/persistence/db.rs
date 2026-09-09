@@ -143,15 +143,41 @@ mod tests {
             let db = Database::open(&path).unwrap();
             let entry = LibraryEntry {
                 id: "one".into(),
+                name: "我的别名".into(),
+                trigger_words: vec!["myStyle".into()],
                 notes: "我的备注".into(),
                 favorite: true,
                 ..Default::default()
             };
             db.put("library", "one", &entry).unwrap();
+            let recipe = Recipe {
+                id: "recipe".into(),
+                owner: "local:one".into(),
+                name: "我的提示词".into(),
+                positive: "soft light".into(),
+                negative: "blur".into(),
+                model_weight: 0.8,
+                clip_weight: 1.0,
+                notes: String::new(),
+            };
+            db.put("recipes", "recipe", &recipe).unwrap();
         }
         let db = Database::open(&path).unwrap();
         let entry: LibraryEntry = db.get("library", "one").unwrap();
         assert_eq!(entry.notes, "我的备注");
+        assert_eq!(entry.name, "我的别名");
+        assert_eq!(entry.trigger_words, vec!["myStyle"]);
+        let recipe: Recipe = db.get("recipes", "recipe").unwrap();
+        assert_eq!(recipe.owner, "local:one");
+        assert_eq!(recipe.positive, "soft light");
+        assert_eq!(recipe.negative, "blur");
         assert!(entry.favorite);
+    }
+    #[test]
+    fn older_library_records_default_to_no_custom_triggers() {
+        let mut old = serde_json::to_value(LibraryEntry::default()).unwrap();
+        old.as_object_mut().unwrap().remove("triggerWords");
+        let entry: LibraryEntry = serde_json::from_value(old).unwrap();
+        assert!(entry.trigger_words.is_empty());
     }
 }

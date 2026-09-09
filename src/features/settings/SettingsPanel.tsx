@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { FolderOpen, KeyRound, Loader2, Save, ShieldCheck } from 'lucide-react';
-import { call, chooseDirectory } from './api';
-import { Modal } from './components';
-import type { Settings } from './types';
+import { FolderOpen, KeyRound, Loader2, Save } from 'lucide-react';
+import { call, chooseDirectory } from '../../lib/api';
+import { Modal } from '../../components/ui';
+import { ApiAccess } from './ApiAccess';
+import type { Settings } from '../../types/models';
 export function SettingsPanel({
   settings,
   onClose,
@@ -15,14 +16,9 @@ export function SettingsPanel({
   notify: (s: string, error?: boolean) => void;
 }) {
   const [draft, setDraft] = useState(settings);
-  const [token, setToken] = useState('');
-  const [hasToken, setHasToken] = useState(false);
   const [busy, setBusy] = useState('');
   const [location, setLocation] = useState('');
   useEffect(() => {
-    void call<boolean>('has_token')
-      .then(setHasToken)
-      .catch(() => {});
     void call<string>('data_location')
       .then(setLocation)
       .catch(() => {});
@@ -85,40 +81,7 @@ export function SettingsPanel({
             <KeyRound size={18} />
             civitai.red 访问
           </h2>
-          <label className="field">
-            API Token{' '}
-            <span className="field-help">
-              {hasToken ? '已安全保存，留空保留现有 Token' : '可选，部分模型下载需要登录权限'}
-            </span>
-            <div className="input-action">
-              <input
-                type="password"
-                autoComplete="off"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="在此粘贴 Token，不会显示在日志中"
-              />
-              {hasToken && (
-                <button
-                  disabled={!!busy}
-                  onClick={() =>
-                    perform('clear-token', async () => {
-                      await call('save_token', { token: '' });
-                      setHasToken(false);
-                      setToken('');
-                      notify('Token 已清除');
-                    })
-                  }
-                >
-                  清除
-                </button>
-              )}
-            </div>
-          </label>
-          <p className="field-help">
-            <ShieldCheck size={13} />
-            Token 存在 Windows 凭据管理器中。
-          </p>
+          <ApiAccess notify={notify} />
           <div className="settings-two">
             <label className="field">
               代理模式
@@ -161,11 +124,6 @@ export function SettingsPanel({
           onClick={() =>
             perform('save', async () => {
               const s = await call<Settings>('save_settings', { settings: draft });
-              if (token.trim()) {
-                await call('save_token', { token });
-                setToken('');
-                setHasToken(true);
-              }
               await onSaved(s);
               notify('设置已保存');
               onClose();

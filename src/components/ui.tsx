@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image as ImageIcon, X, Loader2, AlertCircle, Layers, Search } from 'lucide-react';
-import { asset, call } from './api';
-import type { Cover } from './types';
+import { asset, call } from '../lib/api';
+import type { Cover } from '../types/models';
 
 const imagePromises = new Map<string, Promise<Cover>>();
 export function CoverImage({

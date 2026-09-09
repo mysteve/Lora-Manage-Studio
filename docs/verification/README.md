@@ -16,7 +16,7 @@
 
 ## 图像与界面对应
 
-`../01-library.png` 到 `../04-downloads.png` 是内置 ImageGen 生成的效果图。
+`../design/01-library.png` 到 `../design/04-downloads.png` 是内置 ImageGen 生成的效果图。
 
 `01-library-*`、`02-detail-*`、`03-discover-*`、`04-downloads-*` 是实际前端组件截图。画面明确标注为设计验收预览，使用网站模型资料和模拟安装状态检查布局；这些预览状态不会进入正式构建。
 

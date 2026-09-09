@@ -17,10 +17,10 @@ import {
   Trash2,
   Link as LinkIcon,
 } from 'lucide-react';
-import { ask, call, chooseImage, copy, external, reveal } from './api';
-import { Badge, CoverImage, Loading, Modal } from './components';
-import { blankRecipe, bytes, combine, owner } from './utils';
-import type { LibraryEntry, ModelVersion, Recipe, RemoteModel, Settings } from './types';
+import { ask, call, chooseImage, copy, external, reveal } from '../../lib/api';
+import { Badge, CoverImage, Loading, Modal } from '../../components/ui';
+import { blankRecipe, bytes, combine, modelTriggerWords, owner, parseTriggerWords } from '../../lib/utils';
+import type { LibraryEntry, ModelVersion, Recipe, RemoteModel, Settings } from '../../types/models';
 
 interface Props {
   selection: { model: RemoteModel; versionId: number; entryId?: string; fileId?: number; recipeId?: string };
@@ -166,8 +166,9 @@ export function Detail({
         </div>
         <div className="header-actions">
           {entry && (
-            <button className="icon-button" aria-label="编辑本地资料" onClick={() => setEditOpen(true)}>
+            <button onClick={() => setEditOpen(true)}>
               <SlidersHorizontal size={19} />
+              编辑别名与触发词
             </button>
           )}
           {!!(entry?.modelId ?? selection.model.id) && (
@@ -205,13 +206,13 @@ export function Detail({
                 }
               >
                 <ImagePlus size={21} />
-                <span>更换封面</span>
+                <span>{entry.cover.localPath || entry.cover.url ? '更换封面' : '添加封面'}</span>
               </button>
             )}
           </div>
           {entry?.customCover && (
             <button className="text-button" disabled={!!busy} onClick={() => changeCover('reset')}>
-              恢复网站默认封面
+              {version?.images.length ? '恢复网站默认封面' : '移除自定义封面'}
             </button>
           )}
           <section className="description-block">
@@ -354,6 +355,31 @@ export function Detail({
                   <Copy size={17} />
                 </button>
               </div>
+              {entry && (
+                <div className="trigger-section">
+                  <strong>自定义触发词</strong>
+                  <div className="tag-list">
+                    {entry.triggerWords?.length ? (
+                      entry.triggerWords.map((word) => (
+                        <Badge key={word} tone="accent">
+                          {word}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="muted">可添加自己训练或常用的触发词</span>
+                    )}
+                  </div>
+                  <button
+                    className="icon-button"
+                    aria-label="复制自定义触发词"
+                    disabled={!entry.triggerWords?.length}
+                    onClick={() => copyText((entry.triggerWords ?? []).join(', '))}
+                  >
+                    <Copy size={17} />
+                  </button>
+                  <button onClick={() => setEditOpen(true)}>编辑</button>
+                </div>
+              )}
               {recipeLoading ? (
                 <Loading text="正在读取个人配方…" />
               ) : recipeError ? (
@@ -495,7 +521,9 @@ export function Detail({
                       </button>
                     )}
                     <span className="save-hint">{dirty ? '有未保存的修改' : '仅保存在本机'}</span>
-                    <button onClick={() => copyText(combine(version?.trainedWords ?? [], recipe.positive))}>
+                    <button
+                      onClick={() => copyText(combine(modelTriggerWords(entry, version), recipe.positive))}
+                    >
                       <Copy size={17} />
                       复制组合提示词
                     </button>
@@ -504,7 +532,8 @@ export function Detail({
                     </button>
                   </div>
                   <p className="field-help">
-                    组合复制包含官方触发词和正向提示词。权重请在 ComfyUI 的 LoRA 节点中设置。
+                    组合复制包含官方触发词、自定义触发词和正向提示词，重复的触发词只保留一次。权重请在 ComfyUI
+                    的 LoRA 节点中设置。
                   </p>
                 </div>
               )}
@@ -656,6 +685,7 @@ function EntryEditor({
   notify: Props['notify'];
 }) {
   const [name, setName] = useState(entry.name);
+  const [triggerWords, setTriggerWords] = useState((entry.triggerWords ?? []).join('\n'));
   const [base, setBase] = useState(entry.baseModel);
   const [tags, setTags] = useState(entry.tags.join(', '));
   const [notes, setNotes] = useState(entry.notes);
@@ -664,9 +694,20 @@ function EntryEditor({
   return (
     <Modal title="编辑本地资料" onClose={onClose}>
       <label className="field">
-        模型名称
+        模型别名（本地显示名称）
         <input value={name} onChange={(e) => setName(e.target.value)} />
       </label>
+      <p className="field-help">别名用于模型库展示和搜索，不会修改模型文件名。</p>
+      <label className="field">
+        自定义触发词
+        <textarea
+          rows={3}
+          value={triggerWords}
+          onChange={(e) => setTriggerWords(e.target.value)}
+          placeholder="每行一个，也可使用中英文逗号分隔"
+        />
+      </label>
+      <p className="field-help">与官方触发词分别保存，刷新网站资料时保留。清空后保存即可移除自定义触发词。</p>
       <label className="field">
         基础模型
         <input value={base} onChange={(e) => setBase(e.target.value)} placeholder="例如 SDXL 1.0" />
@@ -694,7 +735,14 @@ function EntryEditor({
             try {
               await call('update_entry', {
                 id: entry.id,
-                edit: { name, baseModel: base, tags: tags.split(/[,，]/), notes, favorite },
+                edit: {
+                  name,
+                  triggerWords: parseTriggerWords(triggerWords),
+                  baseModel: base,
+                  tags: tags.split(/[,，]/),
+                  notes,
+                  favorite,
+                },
               });
               await onSaved();
               notify('本地资料已保存');

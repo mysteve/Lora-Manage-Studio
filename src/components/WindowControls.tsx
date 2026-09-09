@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Copy, Minus, Square, X } from 'lucide-react';
-import { desktop } from './api';
+import { desktop } from '../lib/api';
 
 export function WindowControls({ onError }: { onError: (message: string, error: boolean) => void }) {
   const [maximized, setMaximized] = useState(false);

@@ -1,6 +1,13 @@
 // Development-only visual fixtures. Never enabled in a packaged desktop build.
 import data from './preview-models.json';
-import type { DownloadTask, LibraryEntry, ModelVersion, Recipe, RemoteModel, Settings } from './types';
+import type {
+  DownloadTask,
+  LibraryEntry,
+  ModelVersion,
+  Recipe,
+  RemoteModel,
+  Settings,
+} from '../types/models';
 type Raw = Record<string, any>;
 const models: RemoteModel[] = (data as Raw[]).map((m) => ({
   id: m.id,
@@ -45,6 +52,7 @@ let library: LibraryEntry[] = models.map((m, i) => ({
   modified: 0,
   sha256: m.versions[0]?.files[0]?.sha256 ?? '',
   name: m.name,
+  triggerWords: [],
   author: m.author,
   baseModel: m.versions[0]?.baseModel ?? '',
   tags: m.tags,
@@ -92,9 +100,15 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
       return new URLSearchParams(location.search).has('empty') ? [] : library;
     case 'list_downloads':
       return tasks;
+    case 'auth_status':
+      return { hasToken: false, oauthConfigured: false };
     case 'has_token':
       return false;
     case 'save_token':
+    case 'start_login':
+    case 'poll_login':
+      throw new Error('请在桌面应用中设置登录凭据');
+    case 'cancel_login':
       return null;
     case 'data_location':
       return '开发环境示例数据';

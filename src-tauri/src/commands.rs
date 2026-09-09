@@ -1,4 +1,8 @@
-use crate::{downloads, site, storage, types::*, AppState};
+use crate::{
+    services::{auth, downloads, site, storage},
+    types::*,
+    AppState,
+};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, sync::Arc};
 use tauri::{Emitter, State};
@@ -8,7 +12,8 @@ type Shared<'a> = State<'a, Arc<AppState>>;
 pub fn get_settings(state: Shared<'_>) -> Settings {
     let mut settings = state.db.settings();
     if settings.comfy_root.is_empty() {
-        settings.comfy_root = crate::workspace::legacy_root(&settings.lora_dir).unwrap_or_default();
+        settings.comfy_root =
+            crate::services::workspace::legacy_root(&settings.lora_dir).unwrap_or_default();
     }
     settings
 }
@@ -31,7 +36,8 @@ pub fn save_settings(state: Shared<'_>, mut settings: Settings) -> Result<Settin
         }
     }
     if !settings.comfy_root.trim().is_empty() {
-        (settings.comfy_root, settings.lora_dir) = crate::workspace::bind(&settings.comfy_root)?;
+        (settings.comfy_root, settings.lora_dir) =
+            crate::services::workspace::bind(&settings.comfy_root)?;
     } else {
         // Keep legacy custom directories until the user explicitly binds a root.
         settings.lora_dir = state.db.settings().lora_dir;
@@ -40,22 +46,28 @@ pub fn save_settings(state: Shared<'_>, mut settings: Settings) -> Result<Settin
     Ok(settings)
 }
 #[tauri::command]
-pub fn save_token(token: String) -> Result<(), String> {
-    let entry = site::token_entry()?;
-    if token.trim().is_empty() {
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(_) => Err("无法清除凭据".into()),
-        }
-    } else {
-        entry
-            .set_password(token.trim())
-            .map_err(|_| "无法保存到 Windows 凭据存储".into())
-    }
+pub async fn save_token(token: String) -> Result<(), String> {
+    auth::save_manual(&token).await
 }
 #[tauri::command]
-pub fn has_token() -> bool {
-    site::token().is_some()
+pub async fn has_token() -> Result<bool, String> {
+    Ok(auth::status().await?.has_token)
+}
+#[tauri::command]
+pub async fn auth_status() -> Result<auth::AuthStatus, String> {
+    auth::status().await
+}
+#[tauri::command]
+pub async fn start_login(state: Shared<'_>) -> Result<auth::LoginStart, String> {
+    auth::start(&state.db.settings()).await
+}
+#[tauri::command]
+pub async fn poll_login(state: Shared<'_>, session_id: String) -> Result<auth::LoginPoll, String> {
+    auth::poll(&state.db.settings(), &session_id).await
+}
+#[tauri::command]
+pub async fn cancel_login(session_id: String) {
+    auth::cancel(&session_id).await
 }
 #[tauri::command]
 pub async fn search_models(
@@ -125,6 +137,7 @@ pub fn list_library(state: Shared<'_>) -> Result<Vec<LibraryEntry>, String> {
 #[serde(rename_all = "camelCase")]
 pub struct EntryEdit {
     pub name: String,
+    pub trigger_words: Option<Vec<String>>,
     pub base_model: String,
     pub tags: Vec<String>,
     pub notes: String,
@@ -142,6 +155,9 @@ pub fn update_entry(
     }
     let mut e: LibraryEntry = state.db.get("library", &id)?;
     e.name = edit.name.trim().into();
+    if let Some(words) = edit.trigger_words {
+        e.trigger_words = storage::normalize_trigger_words(words);
+    }
     e.base_model = edit.base_model;
     e.tags = edit
         .tags

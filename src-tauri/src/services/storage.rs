@@ -1,4 +1,4 @@
-use crate::{site, types::*, AppState};
+use crate::{services::site, types::*, AppState};
 use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
 use std::{
@@ -196,6 +196,7 @@ pub async fn enrich(
 }
 pub fn merge_personal(latest: &LibraryEntry, mut updated: LibraryEntry) -> LibraryEntry {
     updated.name = latest.name.clone();
+    updated.trigger_words = latest.trigger_words.clone();
     updated.notes = latest.notes.clone();
     updated.tags = latest.tags.clone();
     updated.favorite = latest.favorite;
@@ -204,6 +205,14 @@ pub fn merge_personal(latest: &LibraryEntry, mut updated: LibraryEntry) -> Libra
         updated.cover = latest.cover.clone();
     }
     updated
+}
+pub fn normalize_trigger_words(words: Vec<String>) -> Vec<String> {
+    let mut unique = std::collections::HashSet::new();
+    words
+        .into_iter()
+        .map(|word| word.trim().to_owned())
+        .filter(|word| !word.is_empty() && unique.insert(word.to_lowercase()))
+        .collect()
 }
 pub async fn bind(state: &AppState, id: &str, link: &str) -> Result<LibraryEntry, String> {
     let old: LibraryEntry = state.db.get("library", id)?;
@@ -433,6 +442,7 @@ mod tests {
     fn merge_preserves_edits() {
         let a = LibraryEntry {
             name: "自定义名称".into(),
+            trigger_words: vec!["my style".into()],
             notes: "备注".into(),
             favorite: true,
             custom_cover: true,
@@ -449,8 +459,37 @@ mod tests {
         };
         let m = merge_personal(&a, b);
         assert_eq!(m.name, a.name);
+        assert_eq!(m.trigger_words, a.trigger_words);
         assert_eq!(m.cover.local_path, "mine.png");
         assert!(m.favorite && m.verified);
+    }
+    #[test]
+    fn custom_triggers_are_trimmed_and_deduplicated() {
+        assert_eq!(
+            normalize_trigger_words(vec![
+                " Style ".into(),
+                "style".into(),
+                "".into(),
+                "soft light".into()
+            ]),
+            vec!["Style", "soft light"]
+        );
+    }
+    #[tokio::test]
+    async fn local_cover_is_copied_into_app_storage() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("我的封面.png");
+        image::RgbaImage::from_pixel(4, 4, image::Rgba([12, 34, 56, 255]))
+            .save(&source)
+            .unwrap();
+        let state = AppState::open(dir.path().join("data")).unwrap();
+        let cover = import_image(&state, source.to_str().unwrap())
+            .await
+            .unwrap();
+        assert!(cover.url.is_empty());
+        assert!(Path::new(&cover.local_path).starts_with(state.data_dir.join("covers")));
+        std::fs::remove_file(source).unwrap();
+        assert!(image::open(&cover.local_path).is_ok());
     }
     #[tokio::test]
     async fn hashes_known_file() {

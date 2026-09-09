@@ -9,19 +9,19 @@ pub fn token_entry() -> Result<keyring::Entry, String> {
     keyring::Entry::new("studio.lora.desktop", "civitai-token")
         .map_err(|_| "无法访问 Windows 凭据存储".into())
 }
-pub fn token() -> Option<String> {
-    token_entry()
-        .ok()?
-        .get_password()
-        .ok()
-        .filter(|v| !v.is_empty())
-}
+
 pub fn client(settings: &Settings) -> Result<Client, String> {
+    client_with_redirect(settings, reqwest::redirect::Policy::limited(10))
+}
+pub fn client_with_redirect(
+    settings: &Settings,
+    redirect: reqwest::redirect::Policy,
+) -> Result<Client, String> {
     let mut builder = Client::builder()
         .user_agent("LoRA-Studio/0.1.0")
         .connect_timeout(Duration::from_secs(20))
         .read_timeout(Duration::from_secs(60))
-        .redirect(reqwest::redirect::Policy::limited(10));
+        .redirect(redirect);
     if settings.proxy_mode == "none" {
         builder = builder.no_proxy();
     }
@@ -60,7 +60,7 @@ pub async fn api(
         .get(format!("{ORIGIN}{path}"))
         .query(params)
         .timeout(Duration::from_secs(45));
-    if let Some(token) = token() {
+    if let Some(token) = super::auth::token(settings).await? {
         req = req.bearer_auth(token)
     }
     let resp = req.send().await.map_err(network_error)?;

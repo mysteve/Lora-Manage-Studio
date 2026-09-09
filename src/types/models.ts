@@ -45,6 +45,7 @@ export interface LibraryEntry {
   modified: number;
   sha256: string;
   name: string;
+  triggerWords: string[];
   author: string;
   baseModel: string;
   tags: string[];

@@ -1,4 +1,4 @@
-import type { LibraryEntry, ModelVersion, Recipe } from './types';
+import type { LibraryEntry, ModelVersion, Recipe } from '../types/models';
 export function bytes(value: number) {
   if (!value) return '0 B';
   const i = Math.min(3, Math.floor(Math.log(value) / Math.log(1024)));
@@ -26,8 +26,27 @@ export function combine(words: string[], positive: string) {
   return [...words.map((s) => s.trim()).filter(Boolean), positive.trim()].filter(Boolean).join(', ');
 }
 export function matchesEntry(e: LibraryEntry, q: string) {
-  const hay = [e.name, ...e.tags, ...(e.version?.trainedWords ?? [])].join(' ').toLocaleLowerCase();
+  const hay = [e.name, ...e.tags, ...modelTriggerWords(e, e.version ?? undefined)]
+    .join(' ')
+    .toLocaleLowerCase();
   return hay.includes(q.trim().toLocaleLowerCase());
+}
+export function parseTriggerWords(text: string): string[] {
+  return uniqueWords(text.split(/[,，\n\r]+/));
+}
+function uniqueWords(words: string[]): string[] {
+  const seen = new Set<string>();
+  return words
+    .map((word) => word.trim())
+    .filter((word) => {
+      const key = word.toLowerCase();
+      if (!word || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+export function modelTriggerWords(entry?: LibraryEntry, version?: ModelVersion): string[] {
+  return uniqueWords([...(version?.trainedWords ?? []), ...(entry?.triggerWords ?? [])]);
 }
 export const statusLabels: Record<string, string> = {
   queued: '等待中',
