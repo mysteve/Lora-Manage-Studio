@@ -112,6 +112,43 @@ fn parse_base_models(data: &Value) -> Result<Vec<String>, String> {
     Ok(models)
 }
 
+// 使用公开标签接口，保留网站原名；query 可查找热门列表以外的分类。
+pub async fn model_tags(settings: &Settings, query: String) -> Result<Vec<String>, String> {
+    let response = client(settings)?
+        .get(format!("{ORIGIN}/api/v1/tags"))
+        .query(&[("limit", "100"), ("query", query.trim())])
+        .timeout(Duration::from_secs(30))
+        .send()
+        .await
+        .map_err(network_error)?;
+    if !response.status().is_success() {
+        return Err(status_error(response.status()));
+    }
+    let data = response
+        .json::<Value>()
+        .await
+        .map_err(|_| "网站响应不是有效的内容分类数据".to_string())?;
+    parse_model_tags(&data)
+}
+
+fn parse_model_tags(data: &Value) -> Result<Vec<String>, String> {
+    let items = data["items"]
+        .as_array()
+        .ok_or("网站未返回有效的内容分类列表")?;
+    let mut tags = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for item in items {
+        let name = item["name"]
+            .as_str()
+            .ok_or("网站返回的内容分类名称无效")?
+            .trim();
+        if !name.is_empty() && seen.insert(name.to_owned()) {
+            tags.push(name.to_owned());
+        }
+    }
+    Ok(tags)
+}
+
 fn filter_safe_images(v: &mut Value) {
     match v {
         Value::Object(map) => {
@@ -286,6 +323,7 @@ pub async fn search(
     settings: &Settings,
     query: String,
     base_model: String,
+    tag: String,
     sort: String,
     cursor: Option<String>,
 ) -> Result<SearchResult, String> {
@@ -300,6 +338,9 @@ pub async fn search(
     }
     if !base_model.is_empty() {
         params.push(("baseModels", base_model))
+    }
+    if !tag.trim().is_empty() {
+        params.push(("tag", tag.trim().to_owned()))
     }
     if let Some(c) = cursor {
         params.push(("cursor", c))
@@ -341,6 +382,22 @@ pub fn safe_download_url(input: &str) -> Result<Url, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn model_tags_preserve_site_names_and_allow_no_search_matches() {
+        let data = serde_json::json!({"items": [
+            {"name": "base model"}, {"name": "clothes"},
+            {"name": " clothing "}, {"name": "clothes"}, {"name": " "}
+        ]});
+        assert_eq!(
+            parse_model_tags(&data).unwrap(),
+            ["base model", "clothes", "clothing"]
+        );
+        assert!(parse_model_tags(&serde_json::json!({"items": []}))
+            .unwrap()
+            .is_empty());
+        assert!(parse_model_tags(&serde_json::json!({"error": "unavailable"})).is_err());
+        assert!(parse_model_tags(&serde_json::json!({"items": [{"name": null}]})).is_err());
+    }
     #[test]
     fn base_models_include_new_and_legacy_values_in_site_order() {
         let data = serde_json::json!({

@@ -85,6 +85,7 @@ pub fn run() {
             commands::poll_login,
             commands::cancel_login,
             commands::get_base_models,
+            commands::get_model_tags,
             commands::search_models,
             commands::resolve_link,
             commands::model_details,

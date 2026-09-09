@@ -31,6 +31,7 @@ import { AddLocalModel } from '../features/models/AddLocalModel';
 import { SettingsPanel } from '../features/settings/SettingsPanel';
 import { WindowControls } from '../components/WindowControls';
 import { BaseModelFilter } from '../features/discover/BaseModelFilter';
+import { CategoryFilter } from '../features/discover/CategoryFilter';
 import type {
   DownloadTask,
   LibraryEntry,
@@ -83,6 +84,7 @@ export default function App() {
   const [localSort, setLocalSort] = useState('newest');
   const [remoteQuery, setRemoteQuery] = useState('');
   const [remoteBase, setRemoteBase] = useState('');
+  const [remoteTag, setRemoteTag] = useState('');
   const [sort, setSort] = useState('Most Downloaded');
   const [searchResult, setSearchResult] = useState<SearchResult>({ items: [], nextCursor: null });
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
@@ -213,6 +215,7 @@ export default function App() {
         const result = await call<SearchResult>('search_models', {
           query: remoteQuery,
           baseModel: remoteBase,
+          tag: remoteTag,
           sort,
           cursor,
         });
@@ -226,7 +229,7 @@ export default function App() {
         if (searchSeq.current === seq) setSearchBusy(false);
       }
     },
-    [remoteQuery, remoteBase, sort],
+    [remoteQuery, remoteBase, remoteTag, sort],
   );
   const navigate = async (next: Page) => {
     if (hasUnsaved && !(await ask('配方尚未保存，确认离开并放弃修改？'))) return;
@@ -606,6 +609,11 @@ export default function App() {
                   </button>
                 </div>
                 <div className="discovery-filters">
+                  <CategoryFilter
+                    value={remoteTag}
+                    onChange={setRemoteTag}
+                    reloadKey={JSON.stringify([settings.proxyMode, settings.proxyUrl])}
+                  />
                   <BaseModelFilter
                     value={remoteBase}
                     onChange={setRemoteBase}

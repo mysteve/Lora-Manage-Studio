@@ -195,12 +195,17 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
       return { url: args.url, localPath: args.url };
     case 'get_base_models':
       return [...new Set(models.flatMap((model) => model.versions.map((version) => version.baseModel)))];
+    case 'get_model_tags':
+      return [...new Set(models.flatMap((model) => model.tags))].filter((tag) =>
+        tag.toLowerCase().includes((args.query ?? '').trim().toLowerCase()),
+      );
     case 'search_models':
       return {
         items: models.filter(
           (m) =>
             m.name.toLowerCase().includes((args.query ?? '').toLowerCase()) &&
-            (!args.baseModel || m.versions.some((version) => version.baseModel === args.baseModel)),
+            (!args.baseModel || m.versions.some((version) => version.baseModel === args.baseModel)) &&
+            (!args.tag || m.tags.includes(args.tag)),
         ),
         nextCursor: null,
       };

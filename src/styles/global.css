@@ -802,7 +802,7 @@ button.card-open:active {
 }
 .discovery-filters {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 26px;
   margin-bottom: 20px;
   flex-wrap: wrap;
@@ -836,6 +836,16 @@ button.card-open:active {
   line-height: 1.6;
   color: #eeb3ad;
   overflow-wrap: anywhere;
+}
+.category-filter .category-search {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.category-filter-hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 .link-bar {
   display: flex;

@@ -78,17 +78,30 @@ pub async fn get_base_models(state: Shared<'_>) -> Result<Vec<String>, String> {
     site::base_models(&state.db.settings()).await
 }
 #[tauri::command]
+pub async fn get_model_tags(state: Shared<'_>, query: String) -> Result<Vec<String>, String> {
+    site::model_tags(&state.db.settings(), query).await
+}
+#[tauri::command]
 pub async fn search_models(
     state: Shared<'_>,
     query: String,
     base_model: String,
+    tag: Option<String>,
     sort: String,
     cursor: Option<String>,
 ) -> Result<SearchResult, String> {
     if !["Highest Rated", "Most Downloaded", "Newest"].contains(&sort.as_str()) {
         return Err("不支持的排序方式".into());
     }
-    site::search(&state.db.settings(), query, base_model, sort, cursor).await
+    site::search(
+        &state.db.settings(),
+        query,
+        base_model,
+        tag.unwrap_or_default(),
+        sort,
+        cursor,
+    )
+    .await
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
