@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { NavIndicator, PageTransition, StateIcon, easeOut } from '../components/Motion';
 import CountUp from '../components/react-bits/CountUp';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
@@ -30,6 +30,8 @@ import { Badge, CoverImage, Empty, ErrorBox, Loading, Modal, SearchInput } from 
 import { bytes, count, matchesEntry, statusLabels } from '../lib/utils';
 import { Detail } from '../features/models/Detail';
 import { AddLocalModel } from '../features/models/AddLocalModel';
+import { AboutDialog } from '../features/about/AboutDialog';
+import { APP_VERSION } from '../features/about/project';
 import { SettingsPanel } from '../features/settings/SettingsPanel';
 import { WindowControls } from '../components/WindowControls';
 import { BaseModelFilter } from '../features/discover/BaseModelFilter';
@@ -45,12 +47,15 @@ import type {
   Settings,
 } from '../types/models';
 
+const DebugResources = import.meta.env.DEV ? lazy(() => import('../features/debug/ResourceMonitor')) : null;
+
 const pageTitles: Record<Page, string> = {
   library: '我的模型',
   discover: '在线发现',
   downloads: '下载中心',
   favorites: '收藏模型',
   recipes: '提示词配方',
+  settings: '设置',
 };
 const subtitles: Record<Page, string> = {
   library: '为每一次创作，找到恰好的 LoRA。',
@@ -58,6 +63,7 @@ const subtitles: Record<Page, string> = {
   downloads: '灵感正在抵达，下载完成后自动安装到 ComfyUI。',
   favorites: '把喜欢的风格，留在手边。',
   recipes: '保存每一次恰到好处的表达。',
+  settings: '管理工作空间、网站访问与 AI 接入。',
 };
 const defaultSettings: Settings = {
   loraDir: '',
@@ -69,9 +75,10 @@ const defaultSettings: Settings = {
 };
 export default function App() {
   const reduced = useReducedMotion();
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const closeAbout = useCallback(() => setAboutOpen(false), []);
   const [page, setPage] = useState<Page>('library');
   const [settings, setSettings] = useState(defaultSettings);
-  const [showSettings, setShowSettings] = useState(false);
   const [savingSafeContent, setSavingSafeContent] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [addLocalOpen, setAddLocalOpen] = useState(false);
@@ -138,7 +145,7 @@ export default function App() {
       setSettings(s);
       setLibrary(l);
       setTasks(t);
-      if (!s.comfyRoot && !s.setupDismissed) setShowSettings(true);
+      if (!s.comfyRoot && !s.setupDismissed) setPage('settings');
     } catch (e) {
       setInitialError(String(e instanceof Error ? e.message : e));
     } finally {
@@ -297,7 +304,7 @@ export default function App() {
   };
   const startScan = async () => {
     if (!settings.comfyRoot) {
-      setShowSettings(true);
+      void navigate('settings');
       notify('先绑定 ComfyUI 根目录');
       return;
     }
@@ -347,7 +354,6 @@ export default function App() {
         : t.status === 'completed'),
   );
   const closeImport = useCallback(() => setImportOpen(false), []);
-  const closeSettings = useCallback(() => setShowSettings(false), []);
   const totalSize = library.filter((e) => !e.missing).reduce((a, e) => a + e.size, 0);
   const modelCards = (items: LibraryEntry[]) => (
     <div className="model-grid">
@@ -382,9 +388,16 @@ export default function App() {
   return (
     <div className="app-shell">
       <WindowControls onError={notify} />
+      <AnimatePresence>{aboutOpen && <AboutDialog onClose={closeAbout} />}</AnimatePresence>
       <aside className="sidebar">
         <div className="sidebar-drag-area" data-tauri-drag-region aria-hidden="true" />
-        <div className="brand" data-tauri-drag-region>
+        <button
+          className="brand"
+          type="button"
+          aria-label="关于 LoRA Studio"
+          aria-haspopup="dialog"
+          onClick={() => setAboutOpen(true)}
+        >
           <div className="brand-mark">
             <img src="/lora-studio-icon.png" alt="" draggable={false} />
           </div>
@@ -392,7 +405,12 @@ export default function App() {
             <strong>LoRA Studio</strong>
             <small>模型与灵感，井然有序</small>
           </div>
-        </div>
+        </button>
+        {DebugResources && (
+          <Suspense fallback={null}>
+            <DebugResources />
+          </Suspense>
+        )}
         <nav aria-label="主导航">
           <button className={page === 'library' ? 'active' : ''} onClick={() => navigate('library')}>
             {page === 'library' && <NavIndicator />}
@@ -424,12 +442,16 @@ export default function App() {
           </button>
         </nav>
         <div className="sidebar-bottom">
-          <button className="settings-nav" onClick={() => setShowSettings(true)}>
+          <button
+            aria-current={page === 'settings' ? 'page' : undefined}
+            className={`settings-nav ${page === 'settings' ? 'active' : ''}`}
+            onClick={() => void navigate('settings')}
+          >
             <SettingsIcon size={21} />
             设置
           </button>
           <span className="app-version">
-            LoRA Studio <span>v0.1.0</span>
+            LoRA Studio <span>v{APP_VERSION}</span>
           </span>
         </div>
       </aside>
@@ -466,12 +488,21 @@ export default function App() {
                 onDirtyChange={setHasUnsaved}
                 onClose={() => setSelected(null)}
                 onChanged={loadLibrary}
-                onNeedSettings={() => setShowSettings(true)}
+                onNeedSettings={() => void navigate('settings')}
                 onDownloaded={async () => {
                   await loadTasks();
                   setSelected(null);
                   setPage('downloads');
                 }}
+              />
+            ) : page === 'settings' ? (
+              <SettingsPanel
+                settings={settings}
+                onClose={() => void navigate('library')}
+                onSaved={async (s) => {
+                  setSettings(s);
+                }}
+                notify={notify}
               />
             ) : (
               <>
@@ -942,7 +973,7 @@ export default function App() {
                         <p>{settings.loraDir || '尚未选择模型文件夹'}</p>
                         <small>下载校验完成后自动安装 · 同时下载 2 个文件</small>
                       </div>
-                      <button onClick={() => setShowSettings(true)}>更改目录</button>
+                      <button onClick={() => void navigate('settings')}>更改目录</button>
                     </div>
                   </>
                 )}
@@ -1042,19 +1073,6 @@ export default function App() {
               </button>
             </div>
           </Modal>
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {showSettings && (
-          <SettingsPanel
-            key="showSettings"
-            settings={settings}
-            onClose={closeSettings}
-            onSaved={async (s) => {
-              setSettings(s);
-            }}
-            notify={notify}
-          />
         )}
       </AnimatePresence>
       <AnimatePresence>

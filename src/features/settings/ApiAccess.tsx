@@ -199,7 +199,7 @@ export function ApiAccess({ notify }: { notify: (message: string, error?: boolea
                 </li>
                 <li>找到 API Keys（API 密钥），创建新密钥，名称可填 LoRA Studio。</li>
                 <li>复制生成的完整密钥。</li>
-                <li>回到设置窗口，粘贴到输入框并点击保存密钥。</li>
+                <li>回到设置页面，粘贴到输入框并点击保存密钥。</li>
               </ol>
               <p>使用个人 API Key 即可，无需注册 OAuth 应用。</p>
               <p className="field-help">

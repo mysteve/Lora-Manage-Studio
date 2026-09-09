@@ -3,6 +3,7 @@ name = "lora-studio"
 version = "0.1.0"
 description = "Local LoRA library for ComfyUI"
 authors = ["LoRA Studio"]
+license = "MIT"
 edition = "2021"
 default-run = "lora-studio"
 
@@ -37,7 +38,7 @@ futures-util = "0.3"
 ammonia = "4"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
 
 [dev-dependencies]
 tempfile = "3"

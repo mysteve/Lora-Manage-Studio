@@ -1,7 +1,10 @@
+pub mod ai;
 pub mod auth;
 pub mod classification_cache;
 pub mod downloads;
+pub mod resources;
 pub mod site;
 pub mod storage;
 pub mod trigger_previews;
+pub mod updates;
 pub mod workspace;

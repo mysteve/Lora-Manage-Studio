@@ -103,4 +103,4 @@ export interface ScanProgress {
   current: string;
   errors: string[];
 }
-export type Page = 'library' | 'discover' | 'downloads' | 'favorites' | 'recipes';
+export type Page = 'library' | 'discover' | 'downloads' | 'favorites' | 'recipes' | 'settings';

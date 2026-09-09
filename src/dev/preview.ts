@@ -93,8 +93,25 @@ const tasks: DownloadTask[] = models.slice(0, 5).map((m, i) => ({
   error: '',
   createdAt: Date.now() / 1000 - i,
 }));
+let aiConfig = { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: '' };
 export async function previewCall(command: string, args: Raw): Promise<unknown> {
   switch (command) {
+    case 'debug_resources_enabled':
+      return false;
+    case 'debug_resource_snapshot':
+      throw new Error('资源监测需要 Windows 桌面开发模式');
+    case 'check_app_update':
+      throw new Error('请在桌面应用中检查更新，或打开 GitHub 发布页面');
+    case 'get_ai_config':
+      return aiConfig;
+    case 'save_ai_config':
+      aiConfig = { ...args.config };
+      return aiConfig;
+    case 'ai_has_token':
+      return false;
+    case 'save_ai_token':
+    case 'list_ai_models':
+      throw new Error('请在桌面应用中接入真实 AI 服务');
     case 'get_settings':
       return settings;
     case 'dismiss_setup':

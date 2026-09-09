@@ -75,6 +75,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            services::ai::get_ai_config,
+            services::ai::save_ai_config,
+            services::ai::ai_has_token,
+            services::ai::save_ai_token,
+            services::ai::list_ai_models,
+            services::updates::check_app_update,
+            services::resources::debug_resources_enabled,
+            services::resources::debug_resource_snapshot,
             commands::get_settings,
             commands::dismiss_setup,
             commands::save_settings,

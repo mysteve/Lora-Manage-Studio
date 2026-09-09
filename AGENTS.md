@@ -16,7 +16,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 - 前端：React 19、TypeScript、Vite，使用 npm 和 `package-lock.json`。
 - 桌面端：Tauri 2、Rust 2021、Tokio；SQLite 保存应用数据，reqwest 处理网站访问和下载。
 - 界面：普通 CSS、Lucide 静态图标、Motion 动效、Morphicons 图标形变，以及按源码引入的 React Bits 组件。
-- 主导航：我的模型、在线发现、下载中心、收藏模型、提示词配方。设置使用弹窗，详情由页面状态切换；当前没有引入前端路由库。
+- 主导航：我的模型、在线发现、下载中心、收藏模型、提示词配方。设置使用内嵌页面，内部按工作空间、网站访问、AI 接入分为三个标签页，各自保存，切换标签保留草稿；详情由页面状态切换；当前没有引入前端路由库。
 - 绑定 ComfyUI 根目录后使用其 `models/loras` 目录，不要求 ComfyUI 正在运行，不重新加入运行检测或虚构连接状态。
 
 依赖的准确版本以当前清单及锁定文件为准。新增功能优先复用现有能力；不要为局部修改迁移框架、样式体系或整批升级依赖。
@@ -29,7 +29,8 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src/app/App.tsx` | 布局、导航、页面组合、跨页面状态和桌面事件订阅 |
 | `src/features/models/` | 模型导入、详情、资料编辑、触发词组合和预览图；`ImageGallery` 负责示例图切换及图片生成参数 |
 | `src/features/discover/` | 网站内容分类、基础模型筛选及相关组件 |
-| `src/features/settings/` | ComfyUI 目录、代理、API 密钥等设置 |
+| `src/features/about/` | 关于弹窗、统一版本号、发布版本比较及组件许可证示例；左上角品牌按钮打开 |
+| `src/features/settings/` | ComfyUI 目录、代理、API 密钥及 AI 接入设置 |
 | `src/components/ui.tsx` | Modal、CoverImage、SearchInput、Badge、Empty、Loading、ErrorBox |
 | `src/components/Motion.tsx` | PageTransition、NavIndicator、StateIcon 和 easeOut |
 | `src/components/react-bits/` | 按需引入的 React Bits 源码、来源说明和许可证 |
@@ -41,6 +42,8 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src-tauri/src/commands.rs` | 提供给前端的 Tauri 命令 |
 | `src-tauri/src/lib.rs` | 应用初始化、共享状态和命令注册 |
 | `src-tauri/src/types.rs` | Rust 数据结构与序列化约定 |
+| `src-tauri/src/services/updates.rs` | 通过 GitHub 正式发布 API 检查更新，沿用代理配置，不自动安装 |
+| `src-tauri/src/services/ai.rs` | AI 配置、按服务地址隔离的凭据及模型列表查询；暂不执行翻译 |
 | `src-tauri/src/services/` | 网站访问、授权、下载、本地模型、目录绑定和预览图处理 |
 | `src-tauri/src/persistence/` | SQLite 持久化及任务恢复 |
 | `src-tauri/capabilities/`、`src-tauri/tauri.conf.json` | 桌面权限、CSP、窗口及打包配置 |
@@ -95,7 +98,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `PageTransition` | 主页面、模型详情的进退；传入 `detail: boolean`，由外层 AnimatePresence 管理退出 |
 | `NavIndicator` | 主导航选中背景；共享 `layoutId="main-navigation"`，只在当前选中的主导航项内渲染 |
 | `StateIcon` | 需要在状态变化时形变的图标，支持 `eye`、`eyeOff`、`pause`、`play`、`retry`、`check`、`close`；默认尺寸 18 |
-| `Modal` | 设置、导入、编辑、帮助等弹窗；默认通过 portal 挂载到 body，内置进入退出动效、Escape、Tab 焦点管理和关闭后焦点恢复 |
+| `Modal` | 导入、编辑、帮助等弹窗；默认通过 portal 挂载到 body，内置进入退出动效、Escape、Tab 焦点管理和关闭后焦点恢复 |
 | React Bits `CountUp` | 模型总数与基础模型数量；常用 `to`、`duration`，当前数量展示使用 0.45 秒；已适配系统偏好及最终数值的无障碍标签 |
 | `easeOut` | 共用缓动 `[0.22, 1, 0.36, 1]`，优先复用 |
 | `useReducedMotion` | 从 `src/lib/useReducedMotion.ts` 引入，使用 useSyncExternalStore 订阅系统偏好，支持运行期间变化 |
@@ -161,3 +164,13 @@ import CountUp from '../components/react-bits/CountUp';
 - 不提交 `node_modules/`、`dist/`、`src-tauri/target/`、生成 schemas、`.test-data/`、数据库、模型、日志及本地安装目录。新增依赖时同步更新对应锁定文件。
 - 用户要求提交时，核对暂存范围，仅提交本次相关内容，使用清楚描述结果的提交说明。推送或发布按用户明确要求执行。
 - 目录、脚本、组件接口或动效规则变化时同步维护本文件。补充背景可查阅 `docs/PROJECT_STRUCTURE.md`、`docs/OAUTH_SETUP.md`、`docs/design/DESIGN.md` 和 `docs/verification/`。
+
+
+## 项目许可
+
+项目自有代码采用根目录 LICENSE 中的 MIT 许可证。修改 README、关于弹窗或包元数据时保持许可证信息一致。第三方组件保留原有授权及版权声明，尤其不得把 React Bits 的 MIT + Commons Clause 表述为纯 MIT；相关记录见 THIRD_PARTY_NOTICES.md。
+
+
+## 开发资源监测
+
+`src/features/debug/` 为开发构建按需加载的资源面板，入口位于左上角品牌下方。`services/resources.rs` 使用 Windows 进程 API 采样主进程及子进程，仅在 Windows debug_assertions 构建中编译采样实现。发布版必须拒绝调用采样命令。保持 2 秒非重叠采样、关闭及页面隐藏时清理定时器，不向浏览器预览填入虚假资源数据。CPU 按进程 ID 与创建时间匹配两次采样，内存单位为 MiB，统计口径说明保留在 README 和验收文档中，不在监测面板底部显示。
