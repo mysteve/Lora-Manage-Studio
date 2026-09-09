@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { Image as ImageIcon, X, Loader2, AlertCircle, Layers, Search } from 'lucide-react';
 import { asset, call } from '../lib/api';
 import type { Cover } from '../types/models';
+import { motion, useIsPresent } from 'motion/react';
+import { useReducedMotion } from '../lib/useReducedMotion';
+import { easeOut } from './Motion';
 
 const imagePromises = new Map<string, Promise<Cover>>();
 export function CoverImage({
@@ -121,7 +124,7 @@ export function Modal({
   children,
   onClose,
   wide = false,
-  portal = false,
+  portal = true,
   className = '',
 }: {
   title: string;
@@ -132,6 +135,10 @@ export function Modal({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
+  const present = useIsPresent();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const el = ref.current;
@@ -142,7 +149,7 @@ export function Modal({
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        onClose();
+        closeRef.current();
       }
       if (e.key === 'Tab' && el) {
         const nodes = Array.from(
@@ -166,16 +173,25 @@ export function Modal({
       document.removeEventListener('keydown', key);
       previous?.focus();
     };
-  }, [onClose]);
+  }, []);
   const dialog = (
-    <div
+    <motion.div
       className="modal-backdrop"
+      inert={!present}
+      initial={{ opacity: reduced ? 1 : 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: reduced ? 1 : 0 }}
+      transition={{ duration: reduced ? 0 : 0.16 }}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
+      <motion.div
         ref={ref}
+        initial={{ y: reduced ? 0 : 12, scale: reduced ? 1 : 0.97 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: reduced ? 0 : 6, scale: reduced ? 1 : 0.985 }}
+        transition={{ duration: reduced ? 0 : 0.2, ease: easeOut }}
         className={`modal ${wide ? 'wide' : ''} ${className}`}
         role="dialog"
         aria-modal="true"
@@ -188,8 +204,8 @@ export function Modal({
           </button>
         </div>
         {children}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
   return portal ? createPortal(dialog, document.body) : dialog;
 }

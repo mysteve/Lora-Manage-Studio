@@ -1,5 +1,7 @@
+import { StateIcon } from '../../components/Motion';
+import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ExternalLink, Eye, EyeOff, Loader2, LogIn, Save, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Loader2, LogIn, Save, ShieldCheck } from 'lucide-react';
 import { call, desktop, external } from '../../lib/api';
 import { Modal } from '../../components/ui';
 
@@ -149,7 +151,7 @@ export function ApiAccess({ notify }: { notify: (message: string, error?: boolea
           disabled={!token || busy || !!login}
           onClick={() => setVisible(!visible)}
         >
-          {visible ? <EyeOff size={17} /> : <Eye size={17} />}
+          <StateIcon name={visible ? 'eyeOff' : 'eye'} size={17} />
         </button>
       </div>
       <div className="api-access-actions">
@@ -180,39 +182,41 @@ export function ApiAccess({ notify }: { notify: (message: string, error?: boolea
       <button type="button" className="link-button api-key-help" onClick={() => setShowGuide(true)}>
         如何获取 API 密钥
       </button>
-      {showGuide && (
-        <Modal title="如何获取 API 密钥" onClose={closeGuide} portal>
-          <div className="api-key-guide">
-            <ol>
-              <li>
-                <button
-                  type="button"
-                  className="link-button"
-                  onClick={() => void open('https://civitai.red/user/account')}
-                >
-                  打开 Civitai 账户设置 <ExternalLink size={13} />
-                </button>
-                ，登录你的账号。
-              </li>
-              <li>找到 API Keys（API 密钥），创建新密钥，名称可填 LoRA Studio。</li>
-              <li>复制生成的完整密钥。</li>
-              <li>回到设置窗口，粘贴到输入框并点击保存密钥。</li>
-            </ol>
-            <p>使用个人 API Key 即可，无需注册 OAuth 应用。</p>
-            <p className="field-help">
-              <ShieldCheck size={13} />
-              {desktop
-                ? '密钥保存在 Windows 凭据管理器中，保存后立即生效。'
-                : '浏览器预览不会保存密钥，请在桌面应用中设置。'}
-            </p>
-          </div>
-          <div className="modal-actions">
-            <button className="primary" onClick={closeGuide}>
-              知道了
-            </button>
-          </div>
-        </Modal>
-      )}
+      <AnimatePresence>
+        {showGuide && (
+          <Modal title="如何获取 API 密钥" onClose={closeGuide} portal>
+            <div className="api-key-guide">
+              <ol>
+                <li>
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => void open('https://civitai.red/user/account')}
+                  >
+                    打开 Civitai 账户设置 <ExternalLink size={13} />
+                  </button>
+                  ，登录你的账号。
+                </li>
+                <li>找到 API Keys（API 密钥），创建新密钥，名称可填 LoRA Studio。</li>
+                <li>复制生成的完整密钥。</li>
+                <li>回到设置窗口，粘贴到输入框并点击保存密钥。</li>
+              </ol>
+              <p>使用个人 API Key 即可，无需注册 OAuth 应用。</p>
+              <p className="field-help">
+                <ShieldCheck size={13} />
+                {desktop
+                  ? '密钥保存在 Windows 凭据管理器中，保存后立即生效。'
+                  : '浏览器预览不会保存密钥，请在桌面应用中设置。'}
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button className="primary" onClick={closeGuide}>
+                知道了
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
       {SHOW_WEBSITE_LOGIN && (
         <div className="api-login">
           <div>

@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Copy, ImagePlus, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Badge, CoverImage, Empty, ErrorBox, Modal } from '../../components/ui';
@@ -142,20 +143,22 @@ export function TriggerPreviews({
           }
         />
       )}
-      {editing !== undefined && (
-        <PreviewEditor
-          entryId={entry.id}
-          initial={editing}
-          availableWords={availableWords}
-          onClose={() => setEditing(undefined)}
-          onSaved={(result) => {
-            updated(result);
-            setSelectedId(editing?.id ?? result.triggerPreviews[result.triggerPreviews.length - 1].id);
-            setEditing(undefined);
-            notify('触发词组合和预览已保存');
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {editing !== undefined && (
+          <PreviewEditor
+            entryId={entry.id}
+            initial={editing}
+            availableWords={availableWords}
+            onClose={() => setEditing(undefined)}
+            onSaved={(result) => {
+              updated(result);
+              setSelectedId(editing?.id ?? result.triggerPreviews[result.triggerPreviews.length - 1].id);
+              setEditing(undefined);
+              notify('触发词组合和预览已保存');
+            }}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }

@@ -15,7 +15,10 @@
     "@tauri-apps/plugin-clipboard-manager": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
+    "lucide": "^1.43.0",
     "lucide-react": "^0.468.0",
+    "morphicons": "^1.7.1",
+    "motion": "^13.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

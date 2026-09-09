@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'motion/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -664,17 +665,19 @@ export function Detail({
           )}
         </div>
       </div>
-      {editOpen && entry && (
-        <EntryEditor
-          entry={entry}
-          onClose={() => setEditOpen(false)}
-          onSaved={async () => {
-            await onChanged();
-            setEditOpen(false);
-          }}
-          notify={notify}
-        />
-      )}
+      <AnimatePresence>
+        {editOpen && entry && (
+          <EntryEditor
+            entry={entry}
+            onClose={() => setEditOpen(false)}
+            onSaved={async () => {
+              await onChanged();
+              setEditOpen(false);
+            }}
+            notify={notify}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }
