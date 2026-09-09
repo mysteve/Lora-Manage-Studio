@@ -209,7 +209,11 @@ export default function App() {
       void perform(async () => setRecipes(await call<Recipe[]>('list_recipes', { owner: null })));
   }, [page, selected, perform]);
   const doSearch = useCallback(
-    async (cursor: string | null = null, stack: (string | null)[] = [null]) => {
+    async (
+      cursor: string | null = null,
+      stack: (string | null)[] = [null],
+      filters: { baseModel?: string; tag?: string; sort?: string } = {},
+    ) => {
       const seq = ++searchSeq.current;
       setSearchBusy(true);
       setSearchError('');
@@ -217,9 +221,9 @@ export default function App() {
       try {
         const result = await call<SearchResult>('search_models', {
           query: remoteQuery,
-          baseModel: remoteBase,
-          tag: remoteTag,
-          sort,
+          baseModel: filters.baseModel ?? remoteBase,
+          tag: filters.tag ?? remoteTag,
+          sort: filters.sort ?? sort,
           cursor,
         });
         if (searchSeq.current === seq) {
@@ -234,6 +238,13 @@ export default function App() {
     },
     [remoteQuery, remoteBase, remoteTag, sort],
   );
+  const changeRemoteFilters = (filters: { baseModel?: string; tag?: string; sort?: string }) => {
+    if (filters.baseModel !== undefined) setRemoteBase(filters.baseModel);
+    if (filters.tag !== undefined) setRemoteTag(filters.tag);
+    if (filters.sort !== undefined) setSort(filters.sort);
+    // Pass the new selection directly because React state updates apply on the next render.
+    void doSearch(null, [null], filters);
+  };
   const navigate = async (next: Page) => {
     if (hasUnsaved && !(await ask('配方尚未保存，确认离开并放弃修改？'))) return;
     setHasUnsaved(false);
@@ -629,19 +640,14 @@ export default function App() {
                       </button>
                     </div>
                     <div className="discovery-filters">
-                      <CategoryFilter
-                        value={remoteTag}
-                        onChange={setRemoteTag}
-                        reloadKey={JSON.stringify([settings.proxyMode, settings.proxyUrl])}
-                      />
                       <BaseModelFilter
                         value={remoteBase}
-                        onChange={setRemoteBase}
+                        onChange={(baseModel) => changeRemoteFilters({ baseModel })}
                         reloadKey={JSON.stringify([settings.proxyMode, settings.proxyUrl])}
                       />
                       <label className="inline-label">
                         排序
-                        <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                        <select value={sort} onChange={(e) => changeRemoteFilters({ sort: e.target.value })}>
                           <option value="Most Downloaded">下载最多</option>
                           <option value="Newest">最新发布</option>
                           <option value="Highest Rated">评分最高</option>
@@ -655,6 +661,12 @@ export default function App() {
                         调整
                       </button>
                     </div>
+                    <CategoryFilter
+                      value={remoteTag}
+                      onChange={(tag) => changeRemoteFilters({ tag })}
+                      baseModel={remoteBase}
+                      reloadKey={JSON.stringify([settings.proxyMode, settings.proxyUrl])}
+                    />
                     <div className="link-bar">
                       <Link size={19} />
                       <input
