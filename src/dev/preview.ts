@@ -1,5 +1,6 @@
 // Development-only visual fixtures. Never enabled in a packaged desktop build.
 import data from './preview-models.json';
+import { parseTriggerWords } from '../lib/utils';
 import type {
   DownloadTask,
   LibraryEntry,
@@ -53,6 +54,7 @@ let library: LibraryEntry[] = models.map((m, i) => ({
   sha256: m.versions[0]?.files[0]?.sha256 ?? '',
   name: m.name,
   triggerWords: [],
+  triggerPreviews: [],
   author: m.author,
   baseModel: m.versions[0]?.baseModel ?? '',
   tags: m.tags,
@@ -66,6 +68,7 @@ let library: LibraryEntry[] = models.map((m, i) => ({
   version: m.versions[0] ?? null,
   createdAt: Date.now() / 1000 - i,
 }));
+if (new URLSearchParams(location.search).has('empty')) library = [];
 let recipes: Recipe[] = models.slice(0, 3).map((m, i) => ({
   id: `r-${i}`,
   owner: `version:${m.versions[0]?.id}`,
@@ -81,7 +84,7 @@ const tasks: DownloadTask[] = models.slice(0, 5).map((m, i) => ({
   model: m,
   version: m.versions[0],
   file: m.versions[0].files[0],
-  destination: library[i].path,
+  destination: `D:\\ComfyUI\\models\\loras\\${m.versions[0].files[0].name}`,
   status: ['downloading', 'downloading', 'queued', 'completed', 'paused'][i],
   downloaded: m.versions[0].files[0].sizeKb * 1024 * [0.64, 0.28, 0, 1, 0.3][i],
   total: m.versions[0].files[0].sizeKb * 1024,
@@ -97,9 +100,81 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
       settings = args.settings;
       return settings;
     case 'list_library':
-      return new URLSearchParams(location.search).has('empty') ? [] : library;
+      return library;
+    case 'add_local_model': {
+      const input = args.input;
+      if (!input.name.trim()) throw new Error('模型名称不能为空');
+      if (!/\.(safetensors|ckpt|pt|bin)$/i.test(input.path)) {
+        throw new Error('仅支持 .safetensors、.ckpt、.pt、.bin 模型文件');
+      }
+      if (library.some((entry) => entry.path.toLowerCase() === input.path.toLowerCase())) {
+        throw new Error('该文件已在我的模型中，可打开详情编辑资料');
+      }
+      const entry: LibraryEntry = {
+        id: crypto.randomUUID(),
+        path: input.path,
+        name: input.name.trim(),
+        size: 0,
+        modified: 0,
+        sha256: '',
+        author: '',
+        baseModel: input.baseModel.trim(),
+        triggerWords: parseTriggerWords(input.triggerWords.join('\n')),
+        triggerPreviews: [],
+        tags: parseTriggerWords(input.tags.join('\n')),
+        notes: input.notes,
+        favorite: false,
+        missing: false,
+        verified: false,
+        cover: { url: '', localPath: '' },
+        customCover: false,
+        modelId: null,
+        version: null,
+        createdAt: Date.now() / 1000,
+      };
+      library = [entry, ...library];
+      return entry;
+    }
     case 'list_downloads':
       return tasks;
+    case 'save_trigger_preview': {
+      const entry = library.find((item) => item.id === args.entryId);
+      if (!entry) throw new Error('模型记录不存在');
+      const input = args.input;
+      const triggerWords = parseTriggerWords(input.triggerWords.join('\n'));
+      if (!triggerWords.length) throw new Error('请至少填写一个触发词');
+      const existing = entry.triggerPreviews.find((group) => group.id === input.id);
+      if (input.id && !existing) throw new Error('该组合已不存在');
+      const group = {
+        id: input.id || crypto.randomUUID(),
+        name: input.name.trim() || triggerWords.join(' + '),
+        triggerWords,
+        notes: input.notes,
+        image: input.imagePath
+          ? { url: '', localPath: input.imagePath }
+          : input.removeImage
+            ? { url: '', localPath: '' }
+            : (existing?.image ?? { url: '', localPath: '' }),
+      };
+      const result = {
+        ...entry,
+        triggerPreviews: existing
+          ? entry.triggerPreviews.map((p) => (p.id === group.id ? group : p))
+          : [...entry.triggerPreviews, group],
+      };
+      library = library.map((item) => (item.id === result.id ? result : item));
+      return result;
+    }
+    case 'delete_trigger_preview': {
+      const entry = library.find((item) => item.id === args.entryId);
+      if (!entry) throw new Error('模型记录不存在');
+      const result = {
+        ...entry,
+        triggerPreviews: entry.triggerPreviews.filter((group) => group.id !== args.previewId),
+      };
+      library = library.map((item) => (item.id === result.id ? result : item));
+      return result;
+    }
     case 'auth_status':
       return { hasToken: false, oauthConfigured: false };
     case 'has_token':

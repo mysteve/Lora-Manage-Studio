@@ -8,6 +8,92 @@ use std::{
 use tauri::Emitter;
 use tokio::io::AsyncReadExt;
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelInput {
+    pub path: String,
+    pub name: String,
+    pub base_model: String,
+    pub trigger_words: Vec<String>,
+    pub tags: Vec<String>,
+    pub notes: String,
+}
+
+struct LibraryImportGuard<'a>(&'a std::sync::atomic::AtomicBool);
+impl Drop for LibraryImportGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+pub async fn add_local_model(
+    state: &AppState,
+    input: LocalModelInput,
+) -> Result<LibraryEntry, String> {
+    if state.scanning.swap(true, Ordering::SeqCst) {
+        return Err("正在扫描或添加模型，请完成后重试".into());
+    }
+    let _guard = LibraryImportGuard(&state.scanning);
+    let name = input.name.trim();
+    if name.is_empty() {
+        return Err("模型名称不能为空".into());
+    }
+    let source = Path::new(input.path.trim());
+    if !source.is_absolute() {
+        return Err("请选择模型文件，或填写完整的绝对路径".into());
+    }
+    let path = source
+        .canonicalize()
+        .map_err(|_| "模型文件不存在或无法访问")?;
+    if !path.is_file() {
+        return Err("请选择模型文件，不能选择文件夹".into());
+    }
+    let extension = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    if !["safetensors", "ckpt", "pt", "bin"].contains(&extension.as_str()) {
+        return Err("仅支持 .safetensors、.ckpt、.pt、.bin 模型文件".into());
+    }
+    let path_string = path.to_string_lossy().to_string();
+    for entry in state.db.list::<LibraryEntry>("library")? {
+        let existing = Path::new(&entry.path)
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(&entry.path));
+        if existing
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&path_string)
+        {
+            return Err("该文件已在我的模型中，可打开详情编辑资料".into());
+        }
+    }
+    let (size, modified) = file_info(&path)?;
+    if size == 0 {
+        return Err("模型文件为空，请选择完整的 LoRA 文件".into());
+    }
+    let sha256 = hash_file(&path).await?;
+    if file_info(&path)? != (size, modified) {
+        return Err("模型文件在读取期间发生变化，请等待文件写入完成后重试".into());
+    }
+    let entry = LibraryEntry {
+        id: uuid::Uuid::new_v4().to_string(),
+        path: path_string,
+        size,
+        modified,
+        sha256,
+        name: name.into(),
+        base_model: input.base_model.trim().into(),
+        trigger_words: normalize_trigger_words(input.trigger_words),
+        tags: normalize_trigger_words(input.tags),
+        notes: input.notes,
+        created_at: now(),
+        ..Default::default()
+    };
+    state.db.put("library", &entry.id, &entry)?;
+    Ok(entry)
+}
+
 pub fn validate_directory(value: &str) -> Result<PathBuf, String> {
     let path = Path::new(value);
     if value.trim().is_empty() || !path.is_absolute() {
@@ -197,6 +283,7 @@ pub async fn enrich(
 pub fn merge_personal(latest: &LibraryEntry, mut updated: LibraryEntry) -> LibraryEntry {
     updated.name = latest.name.clone();
     updated.trigger_words = latest.trigger_words.clone();
+    updated.trigger_previews = latest.trigger_previews.clone();
     updated.notes = latest.notes.clone();
     updated.tags = latest.tags.clone();
     updated.favorite = latest.favorite;
@@ -424,6 +511,94 @@ async fn scan(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn local_input(path: &Path) -> LocalModelInput {
+        LocalModelInput {
+            path: path.to_string_lossy().into(),
+            name: " 我的 LoRA ".into(),
+            base_model: " SDXL 1.0 ".into(),
+            trigger_words: vec![" my style ".into(), "MY STYLE".into(), "".into()],
+            tags: vec![" 人物 ".into(), "人物".into()],
+            notes: "推荐权重 0.8".into(),
+        }
+    }
+    #[tokio::test]
+    async fn local_model_persists_without_workspace_or_changing_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("自定义.SAFETENSORS");
+        std::fs::write(&source, b"abc").unwrap();
+        let data = dir.path().join("data");
+        let state = AppState::open(data.clone()).unwrap();
+        let entry = add_local_model(&state, local_input(&source)).await.unwrap();
+        assert_eq!(entry.name, "我的 LoRA");
+        assert_eq!(entry.base_model, "SDXL 1.0");
+        assert_eq!(entry.trigger_words, vec!["my style"]);
+        assert_eq!(entry.tags, vec!["人物"]);
+        assert_eq!(entry.notes, "推荐权重 0.8");
+        assert_eq!(entry.size, 3);
+        assert_eq!(
+            entry.sha256,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert!(!entry.missing && !entry.verified && entry.version.is_none());
+        assert!(state.db.settings().lora_dir.is_empty());
+        assert_eq!(std::fs::read(&source).unwrap(), b"abc");
+        drop(state);
+        let reopened = AppState::open(data).unwrap();
+        let saved: LibraryEntry = reopened.db.get("library", &entry.id).unwrap();
+        assert_eq!(saved.name, entry.name);
+        assert_eq!(saved.path, entry.path);
+        assert_eq!(saved.trigger_words, entry.trigger_words);
+        assert_eq!(saved.notes, entry.notes);
+        assert!(
+            add_local_model(&reopened, local_input(&source.canonicalize().unwrap()))
+                .await
+                .unwrap_err()
+                .contains("已在")
+        );
+        assert_eq!(
+            reopened.db.list::<LibraryEntry>("library").unwrap().len(),
+            1
+        );
+    }
+    #[tokio::test]
+    async fn local_model_rejects_invalid_inputs_and_releases_import_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().join("data")).unwrap();
+        let empty = dir.path().join("empty.pt");
+        let unsupported = dir.path().join("image.png");
+        std::fs::write(&empty, b"").unwrap();
+        std::fs::write(&unsupported, b"abc").unwrap();
+        for path in [
+            dir.path().to_path_buf(),
+            dir.path().join("missing.bin"),
+            PathBuf::from("relative.pt"),
+            empty,
+            unsupported,
+        ] {
+            assert!(add_local_model(&state, local_input(&path)).await.is_err());
+            assert!(!state.scanning.load(Ordering::SeqCst));
+        }
+        let source = dir.path().join("valid.pt");
+        std::fs::write(&source, b"abc").unwrap();
+        let mut input = local_input(&source);
+        input.name = " ".into();
+        assert!(add_local_model(&state, input).await.is_err());
+        assert!(state.db.list::<LibraryEntry>("library").unwrap().is_empty());
+        state.scanning.store(true, Ordering::SeqCst);
+        assert!(add_local_model(&state, local_input(&source))
+            .await
+            .unwrap_err()
+            .contains("正在扫描"));
+        assert!(state.scanning.load(Ordering::SeqCst));
+        state.scanning.store(false, Ordering::SeqCst);
+        let (first, second) = tokio::join!(
+            add_local_model(&state, local_input(&source)),
+            add_local_model(&state, local_input(&source))
+        );
+        assert!(first.is_ok() ^ second.is_ok());
+        assert_eq!(state.db.list::<LibraryEntry>("library").unwrap().len(), 1);
+        assert!(!state.scanning.load(Ordering::SeqCst));
+    }
     #[test]
     fn names_cannot_escape() {
         for name in [

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ask, call, chooseImage, copy, external, reveal } from '../../lib/api';
 import { Badge, CoverImage, Loading, Modal } from '../../components/ui';
+import { TriggerPreviews } from './TriggerPreviews';
 import { blankRecipe, bytes, combine, modelTriggerWords, owner, parseTriggerWords } from '../../lib/utils';
 import type { LibraryEntry, ModelVersion, Recipe, RemoteModel, Settings } from '../../types/models';
 
@@ -66,7 +67,7 @@ export function Detail({
   const [recipeLoading, setRecipeLoading] = useState(true);
   const [recipeError, setRecipeError] = useState('');
   const [busy, setBusy] = useState('');
-  const [tab, setTab] = useState('recipe');
+  const [tab, setTab] = useState(entry && !selection.recipeId ? 'previews' : 'recipe');
   const [editOpen, setEditOpen] = useState(false);
   const [bindLink, setBindLink] = useState('');
   const dirty = !!saved && JSON.stringify(recipe) !== saved;
@@ -300,6 +301,11 @@ export function Detail({
         </div>
         <div className="detail-panel">
           <div className="tabs">
+            {entry && (
+              <button className={tab === 'previews' ? 'active' : ''} onClick={() => setTab('previews')}>
+                组合预览
+              </button>
+            )}
             <button className={tab === 'recipe' ? 'active' : ''} onClick={() => setTab('recipe')}>
               提示词配方
             </button>
@@ -331,7 +337,9 @@ export function Detail({
               </Badge>
             )}
           </div>
-          {tab === 'recipe' ? (
+          {tab === 'previews' && entry ? (
+            <TriggerPreviews key={entry.id} entry={entry} onChanged={onChanged} notify={notify} />
+          ) : tab === 'recipe' ? (
             <>
               <div className="trigger-section">
                 <strong>官方触发词</strong>

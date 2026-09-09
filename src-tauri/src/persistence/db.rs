@@ -63,6 +63,24 @@ impl Database {
             .map_err(|e| e.to_string())?;
         Ok(())
     }
+    pub fn update_library(
+        &self,
+        id: &str,
+        update: impl FnOnce(&mut LibraryEntry) -> Result<(), String>,
+    ) -> Result<LibraryEntry, String> {
+        let conn = self.0.lock().map_err(|e| e.to_string())?;
+        let json: String = conn
+            .query_row("SELECT data FROM library WHERE id=?1", [id], |row| {
+                row.get(0)
+            })
+            .map_err(|_| "模型记录不存在".to_string())?;
+        let mut entry: LibraryEntry = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+        update(&mut entry)?;
+        let json = serde_json::to_string(&entry).map_err(|e| e.to_string())?;
+        conn.execute("UPDATE library SET data=?1 WHERE id=?2", params![json, id])
+            .map_err(|e| e.to_string())?;
+        Ok(entry)
+    }
     fn table(table: &str) -> Result<(), String> {
         if ["library", "recipes", "downloads", "settings"].contains(&table) {
             Ok(())
@@ -177,7 +195,9 @@ mod tests {
     fn older_library_records_default_to_no_custom_triggers() {
         let mut old = serde_json::to_value(LibraryEntry::default()).unwrap();
         old.as_object_mut().unwrap().remove("triggerWords");
+        old.as_object_mut().unwrap().remove("triggerPreviews");
         let entry: LibraryEntry = serde_json::from_value(old).unwrap();
         assert!(entry.trigger_words.is_empty());
+        assert!(entry.trigger_previews.is_empty());
     }
 }

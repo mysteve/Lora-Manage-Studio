@@ -122,6 +122,16 @@ pub async fn model_details(state: Shared<'_>, id: u64) -> Result<RemoteModel, St
     site::get_model(&state.db.settings(), id).await
 }
 #[tauri::command]
+pub async fn add_local_model(
+    state: Shared<'_>,
+    app: tauri::AppHandle,
+    input: storage::LocalModelInput,
+) -> Result<LibraryEntry, String> {
+    let entry = storage::add_local_model(&state, input).await?;
+    let _ = app.emit("library-changed", ());
+    Ok(entry)
+}
+#[tauri::command]
 pub fn list_library(state: Shared<'_>) -> Result<Vec<LibraryEntry>, String> {
     let mut entries = state.db.list::<LibraryEntry>("library")?;
     for e in &mut entries {
@@ -265,6 +275,28 @@ pub async fn set_cover(
     state.db.put("library", &id, &latest)?;
     let _ = app.emit("library-changed", ());
     Ok(latest)
+}
+#[tauri::command]
+pub async fn save_trigger_preview(
+    state: Shared<'_>,
+    app: tauri::AppHandle,
+    entry_id: String,
+    input: crate::services::trigger_previews::PreviewInput,
+) -> Result<LibraryEntry, String> {
+    let entry = crate::services::trigger_previews::save(&state, &entry_id, input).await?;
+    let _ = app.emit("library-changed", ());
+    Ok(entry)
+}
+#[tauri::command]
+pub fn delete_trigger_preview(
+    state: Shared<'_>,
+    app: tauri::AppHandle,
+    entry_id: String,
+    preview_id: String,
+) -> Result<LibraryEntry, String> {
+    let entry = crate::services::trigger_previews::remove(&state, &entry_id, &preview_id)?;
+    let _ = app.emit("library-changed", ());
+    Ok(entry)
 }
 #[tauri::command]
 pub fn list_recipes(state: Shared<'_>, owner: Option<String>) -> Result<Vec<Recipe>, String> {

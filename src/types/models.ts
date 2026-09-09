@@ -38,6 +38,13 @@ export interface RemoteModel {
   downloads: number;
   versions: ModelVersion[];
 }
+export interface TriggerPreview {
+  id: string;
+  name: string;
+  triggerWords: string[];
+  image: Cover;
+  notes: string;
+}
 export interface LibraryEntry {
   id: string;
   path: string;
@@ -46,6 +53,7 @@ export interface LibraryEntry {
   sha256: string;
   name: string;
   triggerWords: string[];
+  triggerPreviews: TriggerPreview[];
   author: string;
   baseModel: string;
   tags: string[];

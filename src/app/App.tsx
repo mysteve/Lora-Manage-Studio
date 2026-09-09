@@ -28,6 +28,7 @@ import { ask, call, desktop, preview, reveal } from '../lib/api';
 import { Badge, CoverImage, Empty, ErrorBox, Loading, Modal, SearchInput } from '../components/ui';
 import { bytes, count, matchesEntry, statusLabels } from '../lib/utils';
 import { Detail } from '../features/models/Detail';
+import { AddLocalModel } from '../features/models/AddLocalModel';
 import { SettingsPanel } from '../features/settings/SettingsPanel';
 import { WindowControls } from '../components/WindowControls';
 import type {
@@ -67,6 +68,7 @@ export default function App() {
   const [settings, setSettings] = useState(defaultSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [addLocalOpen, setAddLocalOpen] = useState(false);
   const [link, setLink] = useState('');
   const [library, setLibrary] = useState<LibraryEntry[]>([]);
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
@@ -448,6 +450,12 @@ export default function App() {
                 <p>{subtitles[page]}</p>
               </div>
               <div className="header-actions">
+                {page === 'library' && (
+                  <button onClick={() => setAddLocalOpen(true)}>
+                    <Plus size={17} />
+                    添加本地 LoRA
+                  </button>
+                )}
                 {(page === 'library' || page === 'favorites') && (
                   <>
                     <button onClick={() => setImportOpen(true)}>
@@ -555,10 +563,14 @@ export default function App() {
                     description={
                       library.length
                         ? '试试其他关键词，或清除筛选条件。'
-                        : '扫描已有的 LoRA，或从 civitai.red 发现新的风格。封面、触发词和配方，都能留在这里。'
+                        : '添加本地 LoRA、扫描模型文件夹，或从 civitai.red 发现新的风格。'
                     }
                     action={
                       <div className="empty-actions">
+                        <button onClick={() => setAddLocalOpen(true)}>
+                          <Plus size={17} />
+                          添加本地 LoRA
+                        </button>
                         <button className="primary" onClick={() => navigate('discover')}>
                           <Compass size={17} />
                           探索在线模型
@@ -933,6 +945,21 @@ export default function App() {
           </>
         )}
       </main>
+      {addLocalOpen && (
+        <AddLocalModel
+          onClose={() => setAddLocalOpen(false)}
+          onAdded={(entry) => {
+            setLibrary((current) => [entry, ...current.filter((item) => item.id !== entry.id)]);
+            setQuery('');
+            setBase('');
+            setFileStatus('');
+            setLocalSort('newest');
+            setPage('library');
+            setAddLocalOpen(false);
+            notify('已添加到我的模型');
+          }}
+        />
+      )}
       {importOpen && (
         <Modal title="从链接导入模型" onClose={closeImport}>
           <p className="modal-description">粘贴模型、版本或下载入口链接，先查看资料，再选择文件下载。</p>

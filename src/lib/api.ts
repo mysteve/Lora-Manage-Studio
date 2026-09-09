@@ -23,14 +23,22 @@ export async function chooseDirectory() {
     ? await open({ directory: true, multiple: false, title: '选择 ComfyUI 根目录（或便携版文件夹）' })
     : null;
 }
-export async function chooseImage() {
+export async function chooseImage(title = '选择模型封面') {
   return desktop
     ? await open({
         multiple: false,
-        title: '选择模型封面',
+        title,
         filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
       })
     : null;
+}
+export async function chooseLoraFile() {
+  if (!desktop) throw new Error('请在桌面应用中选择本地 LoRA 文件');
+  return open({
+    multiple: false,
+    title: '选择 LoRA 模型文件',
+    filters: [{ name: 'LoRA 模型', extensions: ['safetensors', 'ckpt', 'pt', 'bin'] }],
+  });
 }
 export async function ask(message: string) {
   return desktop

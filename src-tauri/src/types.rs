@@ -71,6 +71,15 @@ pub struct SearchResult {
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct TriggerPreview {
+    pub id: String,
+    pub name: String,
+    pub trigger_words: Vec<String>,
+    pub image: Cover,
+    pub notes: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryEntry {
     pub id: String,
     pub path: String,
@@ -80,6 +89,8 @@ pub struct LibraryEntry {
     pub name: String,
     #[serde(default)]
     pub trigger_words: Vec<String>,
+    #[serde(default)]
+    pub trigger_previews: Vec<TriggerPreview>,
     pub author: String,
     pub base_model: String,
     pub tags: Vec<String>,
