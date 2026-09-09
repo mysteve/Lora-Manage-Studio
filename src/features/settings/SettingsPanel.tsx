@@ -198,15 +198,25 @@ export function SettingsPanel({
                 />
               </label>
             </div>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                disabled={!!busy}
-                checked={draft.safeContent}
-                onChange={(e) => patch({ safeContent: e.target.checked })}
-              />
-              在线搜索仅显示安全内容
-            </label>
+            <div className="settings-safety">
+              <label className="safe-content-toggle">
+                <span>安全审查</span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label="安全审查"
+                  aria-describedby="safety-description"
+                  disabled={!!busy}
+                  checked={draft.safeContent}
+                  onChange={(e) => patch({ safeContent: e.target.checked })}
+                />
+                <span className="safe-content-track" aria-hidden="true" />
+              </label>
+              <p id="safety-description">
+                开启后，在线发现筛选安全内容，本地模型中被 C
+                站标记为受限的封面和示例图显示占位提示。关闭并保存后恢复原图。
+              </p>
+            </div>
             <div className="settings-actions">{saveButton('website', '保存网站访问设置')}</div>
           </section>
         </div>

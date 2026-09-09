@@ -277,20 +277,16 @@ pub async fn set_cover(
     let cover = match mode.as_str() {
         "local" => storage::import_image(&state, &value).await?,
         "remote" => {
-            if !initial
+            let source = initial
                 .version
                 .as_ref()
-                .is_some_and(|v| v.images.iter().any(|c| c.url == value))
-            {
-                return Err("请选择该版本的封面图片".into());
-            }
-            storage::cache_image(&state, &value).await?
+                .and_then(|v| v.images.iter().find(|c| c.url == value))
+                .ok_or("请选择该版本的封面图片")?;
+            storage::cache_preview(&state, source).await?
         }
         "reset" => {
             if let Some(c) = initial.version.as_ref().and_then(|v| v.images.first()) {
-                storage::cache_image(&state, &c.url)
-                    .await
-                    .unwrap_or(c.clone())
+                storage::cache_preview(&state, c).await.unwrap_or(c.clone())
             } else {
                 Cover::default()
             }

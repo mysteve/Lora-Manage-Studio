@@ -254,6 +254,13 @@ pub async fn import_image(state: &AppState, path: &str) -> Result<Cover, String>
         ..Default::default()
     })
 }
+pub async fn cache_preview(state: &AppState, cover: &Cover) -> Result<Cover, String> {
+    let mut result = cover.clone();
+    if !(state.db.settings().safe_content && cover.nsfw_level.is_some_and(|level| level > 1)) {
+        result.local_path = cache_image(state, &cover.url).await?.local_path;
+    }
+    Ok(result)
+}
 pub async fn enrich(
     state: &AppState,
     mut entry: LibraryEntry,
@@ -269,7 +276,7 @@ pub async fn enrich(
     }
     let mut v = version.clone();
     for c in v.images.iter_mut().take(4) {
-        if let Ok(cached) = cache_image(state, &c.url).await {
+        if let Ok(cached) = cache_preview(state, c).await {
             *c = cached
         }
     }
@@ -679,5 +686,20 @@ mod tests {
             hash_file(&p).await.unwrap(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+    #[tokio::test]
+    async fn restricted_preview_keeps_rating_and_metadata_without_fetching_image() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::open(dir.path().to_path_buf()).unwrap();
+        let cover = Cover {
+            url: "https://image.civitai.red/not-requested.png".into(),
+            nsfw_level: Some(4),
+            meta: Some(serde_json::json!({"seed": 0})),
+            ..Default::default()
+        };
+        let cached = cache_preview(&state, &cover).await.unwrap();
+        assert_eq!(cached.nsfw_level, Some(4));
+        assert_eq!(cached.meta.unwrap()["seed"], 0);
+        assert!(cached.local_path.is_empty());
     }
 }

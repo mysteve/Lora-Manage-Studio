@@ -68,17 +68,38 @@ impl Database {
         id: &str,
         update: impl FnOnce(&mut LibraryEntry) -> Result<(), String>,
     ) -> Result<LibraryEntry, String> {
+        self.update("library", id, update)
+    }
+    pub fn update_download(
+        &self,
+        id: &str,
+        update: impl FnOnce(&mut DownloadTask) -> Result<(), String>,
+    ) -> Result<DownloadTask, String> {
+        self.update("downloads", id, update)
+    }
+    fn update<T: DeserializeOwned + Serialize>(
+        &self,
+        table: &str,
+        id: &str,
+        update: impl FnOnce(&mut T) -> Result<(), String>,
+    ) -> Result<T, String> {
+        Self::table(table)?;
         let conn = self.0.lock().map_err(|e| e.to_string())?;
         let json: String = conn
-            .query_row("SELECT data FROM library WHERE id=?1", [id], |row| {
-                row.get(0)
-            })
-            .map_err(|_| "模型记录不存在".to_string())?;
-        let mut entry: LibraryEntry = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+            .query_row(
+                &format!("SELECT data FROM {table} WHERE id=?1"),
+                [id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "记录不存在".to_string())?;
+        let mut entry: T = serde_json::from_str(&json).map_err(|e| e.to_string())?;
         update(&mut entry)?;
         let json = serde_json::to_string(&entry).map_err(|e| e.to_string())?;
-        conn.execute("UPDATE library SET data=?1 WHERE id=?2", params![json, id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            &format!("UPDATE {table} SET data=?1 WHERE id=?2"),
+            params![json, id],
+        )
+        .map_err(|e| e.to_string())?;
         Ok(entry)
     }
     fn table(table: &str) -> Result<(), String> {

@@ -20,6 +20,7 @@ pub struct AppState {
     pub semaphore: Arc<Semaphore>,
     pub workers: Mutex<HashMap<String, CancellationToken>>,
     pub scanning: AtomicBool,
+    pub cover_metadata_lock: tokio::sync::Mutex<()>,
 }
 impl AppState {
     pub fn open(data_dir: PathBuf) -> Result<Arc<Self>, String> {
@@ -32,6 +33,7 @@ impl AppState {
             semaphore: Arc::new(Semaphore::new(2)),
             workers: Mutex::new(HashMap::new()),
             scanning: AtomicBool::new(false),
+            cover_metadata_lock: tokio::sync::Mutex::new(()),
         }))
     }
 }
@@ -75,6 +77,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            services::cover_metadata::refresh_library_cover_metadata,
             services::ai::get_ai_config,
             services::ai::save_ai_config,
             services::ai::ai_has_token,

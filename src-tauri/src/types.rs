@@ -42,6 +42,8 @@ pub struct Cover {
     pub url: String,
     pub local_path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nsfw_level: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<serde_json::Value>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -55,6 +57,8 @@ pub struct ModelVersion {
     pub trained_words: Vec<String>,
     pub files: Vec<SourceFile>,
     pub images: Vec<Cover>,
+    #[serde(default)]
+    pub images_classified: bool,
     pub availability: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

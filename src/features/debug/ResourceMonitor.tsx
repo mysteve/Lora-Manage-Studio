@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Activity, Pause, Play, X } from 'lucide-react';
 import { call, desktop, preview } from '../../lib/api';
 import { resourceSummary, type ResourceSnapshot } from './resources';
@@ -35,14 +36,16 @@ export default function ResourceMonitor() {
         <Activity size={15} />
         资源监测<span>DEV</span>
       </button>
-      {open && (
-        <ResourcePanel
-          onClose={() => {
-            setOpen(false);
-            button.current?.focus();
-          }}
-        />
-      )}
+      {open &&
+        createPortal(
+          <ResourcePanel
+            onClose={() => {
+              setOpen(false);
+              button.current?.focus();
+            }}
+          />,
+          document.body,
+        )}
     </>
   );
 }

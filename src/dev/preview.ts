@@ -34,11 +34,19 @@ const models: RemoteModel[] = (data as Raw[]).map((m) => ({
       format: f.metadata?.format ?? '',
       primary: f.primary ?? false,
     })),
+    imagesClassified: true,
     images: (v.images ?? [])
       .filter((i: Raw) => i.type === 'image')
-      .map((i: Raw) => ({ url: i.url, localPath: '', meta: i.meta })),
+      .map((i: Raw) => ({ url: i.url, localPath: '', meta: i.meta, nsfwLevel: i.nsfwLevel ?? 1 })),
   })),
 }));
+// Use harmless landscape images to exercise safety states without restricted media.
+if (new URLSearchParams(location.search).has('safety-preview')) {
+  models[0].name = '安全审查示例 · 风景封面';
+  models[0].versions[0].images = models[0].versions[0].images.map((image) => ({ ...image, nsfwLevel: 4 }));
+  models[1].name = '无封面示例';
+  models[1].versions[0].images = [];
+}
 let settings: Settings = {
   loraDir: 'D:\\ComfyUI\\models\\loras',
   comfyRoot: 'D:\\ComfyUI',
@@ -112,6 +120,8 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
     case 'save_ai_token':
     case 'list_ai_models':
       throw new Error('请在桌面应用中接入真实 AI 服务');
+    case 'refresh_library_cover_metadata':
+      return null;
     case 'get_settings':
       return settings;
     case 'dismiss_setup':

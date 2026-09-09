@@ -2,6 +2,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { NavIndicator, PageTransition, StateIcon, easeOut } from '../components/Motion';
 import CountUp from '../components/react-bits/CountUp';
+import { ContentSafetyContext } from '../lib/contentSafety';
+import { useLibraryCoverMetadata } from '../features/models/useLibraryCoverMetadata';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -79,7 +81,6 @@ export default function App() {
   const closeAbout = useCallback(() => setAboutOpen(false), []);
   const [page, setPage] = useState<Page>('library');
   const [settings, setSettings] = useState(defaultSettings);
-  const [savingSafeContent, setSavingSafeContent] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [addLocalOpen, setAddLocalOpen] = useState(false);
   const [link, setLink] = useState('');
@@ -132,6 +133,7 @@ export default function App() {
     [notify],
   );
   const loadLibrary = useCallback(async () => setLibrary(await call<LibraryEntry[]>('list_library')), []);
+  useLibraryCoverMetadata(!initializing && !initialError, settings, loadLibrary, notify);
   const loadTasks = useCallback(async () => setTasks(await call<DownloadTask[]>('list_downloads')), []);
   const initialize = useCallback(async () => {
     setInitializing(true);
@@ -206,12 +208,15 @@ export default function App() {
       clearTimeout(debounce);
       debounce = setTimeout(() => void loadLibrary().catch((e) => notify(String(e), true)), 200);
     });
+    void add('download-covers-changed', () => {
+      void loadTasks().catch((e) => notify(String(e), true));
+    });
     return () => {
       disposed = true;
       unsubs.forEach((f) => f());
       clearTimeout(debounce);
     };
-  }, [loadLibrary, notify]);
+  }, [loadLibrary, loadTasks, notify]);
   useEffect(() => {
     if (page === 'recipes')
       void perform(async () => setRecipes(await call<Recipe[]>('list_recipes', { owner: null })));
@@ -385,7 +390,7 @@ export default function App() {
       ))}
     </div>
   );
-  return (
+  const content = (
     <div className="app-shell">
       <WindowControls onError={notify} />
       <AnimatePresence>{aboutOpen && <AboutDialog onClose={closeAbout} />}</AnimatePresence>
@@ -501,6 +506,12 @@ export default function App() {
                 onClose={() => void navigate('library')}
                 onSaved={async (s) => {
                   setSettings(s);
+                  if (s.safeContent !== settings.safeContent) {
+                    searchSeq.current += 1;
+                    setSearchBusy(false);
+                    setSearchResult({ items: [], nextCursor: null });
+                    setSearched(false);
+                  }
                 }}
                 notify={notify}
               />
@@ -684,33 +695,6 @@ export default function App() {
                           <option value="Newest">最新发布</option>
                           <option value="Highest Rated">评分最高</option>
                         </select>
-                      </label>
-                      <label className="safe-content-toggle">
-                        <span>安全内容</span>
-                        <input
-                          type="checkbox"
-                          role="switch"
-                          aria-label="安全内容"
-                          checked={settings.safeContent}
-                          disabled={savingSafeContent || initializing}
-                          onChange={async (event) => {
-                            const safeContent = event.target.checked;
-                            setSavingSafeContent(true);
-                            try {
-                              const saved = await call<Settings>('save_settings', {
-                                settings: { ...settings, safeContent },
-                              });
-                              setSettings(saved);
-                              setSearchResult({ items: [], nextCursor: null });
-                              await doSearch();
-                            } catch (error) {
-                              notify(String(error), true);
-                            } finally {
-                              setSavingSafeContent(false);
-                            }
-                          }}
-                        />
-                        <span className="safe-content-track" aria-hidden="true" />
                       </label>
                     </div>
                     <CategoryFilter
@@ -1095,4 +1079,5 @@ export default function App() {
       </AnimatePresence>
     </div>
   );
+  return <ContentSafetyContext.Provider value={settings.safeContent}>{content}</ContentSafetyContext.Provider>;
 }

@@ -6,6 +6,7 @@ import { CoverImage } from '../../components/ui';
 import { useReducedMotion } from '../../lib/useReducedMotion';
 import type { Cover } from '../../types/models';
 import './ImageGallery.css';
+import { coverSafety, useContentSafety } from '../../lib/contentSafety';
 
 const labels: Record<string, string> = {
   prompt: '正向提示词',
@@ -58,10 +59,13 @@ export function ImageGallery({
   const [direction, setDirection] = useState(1);
   const reduced = useReducedMotion();
   const current = gallery[currentIndex];
-  const rows = metadataRows(current?.meta);
+  const safety = coverSafety(current, useContentSafety());
+  const rows = metadataRows(safety === 'visible' ? current?.meta : undefined);
   const move = (delta: number) => {
     setDirection(delta);
-    setIndex((previous) => (Math.min(previous, gallery.length - 1) + delta + gallery.length) % gallery.length);
+    setIndex(
+      (previous) => (Math.min(previous, gallery.length - 1) + delta + gallery.length) % gallery.length,
+    );
   };
   return (
     <section className="image-gallery" aria-label="模型示例图">
@@ -115,11 +119,14 @@ export function ImageGallery({
           </div>
         </>
       )}
-      {onSetCover && current?.url && images.some((image) => image.url === current.url) && (
-        <button className="text-button" disabled={busy} onClick={() => void onSetCover(current.url)}>
-          将当前图片设为模型封面
-        </button>
-      )}
+      {safety === 'visible' &&
+        onSetCover &&
+        current?.url &&
+        images.some((image) => image.url === current.url) && (
+          <button className="text-button" disabled={busy} onClick={() => void onSetCover(current.url)}>
+            将当前图片设为模型封面
+          </button>
+        )}
       <section className="image-parameters" aria-label="当前图片生成参数">
         <div className="gallery-navigation">
           <h2>图片提示词与参数</h2>
@@ -152,7 +159,13 @@ export function ImageGallery({
             ))}
           </dl>
         ) : (
-          <p className="muted">这张图片未提供提示词或生成参数。</p>
+          <p className="muted">
+            {safety === 'hidden'
+              ? '安全审查已隐藏该图片的提示词与参数。'
+              : safety === 'unknown'
+                ? '封面分级更新后显示图片提示词与参数。'
+                : '这张图片未提供提示词或生成参数。'}
+          </p>
         )}
       </section>
     </section>

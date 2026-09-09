@@ -7,6 +7,7 @@ export interface Settings {
   safeContent: boolean;
 }
 export interface Cover {
+  nsfwLevel?: number | null;
   meta?: Record<string, unknown> | null;
   url: string;
   localPath: string;
@@ -29,6 +30,7 @@ export interface ModelVersion {
   trainedWords: string[];
   files: SourceFile[];
   images: Cover[];
+  imagesClassified?: boolean;
   availability: string;
 }
 export interface RemoteModel {

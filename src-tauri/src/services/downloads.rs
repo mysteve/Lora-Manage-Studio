@@ -54,7 +54,7 @@ pub async fn enqueue(
         }
     }
     if let Some(cover) = version.images.first_mut() {
-        if let Ok(c) = storage::cache_image(&state, &cover.url).await {
+        if let Ok(c) = storage::cache_preview(&state, cover).await {
             *cover = c
         }
     }

@@ -44,6 +44,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src-tauri/src/types.rs` | Rust 数据结构与序列化约定 |
 | `src-tauri/src/services/updates.rs` | 通过 GitHub 正式发布 API 检查更新，沿用代理配置，不自动安装 |
 | `src-tauri/src/services/ai.rs` | AI 配置、按服务地址隔离的凭据及模型列表查询；暂不执行翻译 |
+| `src-tauri/src/services/cover_metadata.rs` | 后台补齐旧模型及下载记录的图片分级，仅合并预览资料，保留个人编辑和下载状态 |
 | `src-tauri/src/services/` | 网站访问、授权、下载、本地模型、目录绑定和预览图处理 |
 | `src-tauri/src/persistence/` | SQLite 持久化及任务恢复 |
 | `src-tauri/capabilities/`、`src-tauri/tauri.conf.json` | 桌面权限、CSP、窗口及打包配置 |
@@ -84,6 +85,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 - 网站资料刷新必须保留用户设置的名称、标签、收藏、备注、自定义封面及配方。持久化结构变更应兼容已有数据，不能通过清空数据库解决兼容问题。
 - 下载流程保留暂停、继续、重试、取消、校验与恢复逻辑；不能为了界面反馈提前标记成功。保持安全文件名、路径限制及安装时不覆盖已有文件的保护。
 - API 密钥使用现有 keyring 实现，不写入源码、日志、预览数据、localStorage 或普通设置文件。外链沿用 URL 校验，远程 HTML 沿用清理流程，不扩大 CSP 或文件访问范围来规避报错。
+- 安全审查开关只放在设置的「网站访问」标签页，随该页设置保存。保留 C 站图片 `nsfwLevel` 和原始地址，通过 `ContentSafetyContext` 控制展示；开启时分级大于 1 的封面使用 `src/assets/safety-cover.png` 静态占位，未知分级显示待更新。不可删除受限图片资料、把缺图当作受限内容，或将缓存后的图片分级丢失。旧资料通过 `refresh_library_cover_metadata` 补齐，`download-covers-changed` 只刷新下载封面，不触发下载完成提示。安全审查预览用 `?preview&safety-preview`，以普通风景图模拟受限状态。
 - 正常用户数据位于 `%APPDATA%\studio.lora.desktop\`，实际模型位于绑定目录。不要将用户数据、模型或凭据作为测试素材。
 - 调试构建可通过 `LORA_STUDIO_TEST_DATA` 指向独立测试数据目录；发布构建不读取该覆盖值。它只改变应用数据目录，不代表 Windows 凭据或模型目标目录自动隔离，联调仍需使用专门的测试路径。临时环境变量用后恢复。
 
@@ -172,5 +174,7 @@ import CountUp from '../components/react-bits/CountUp';
 
 
 ## 开发资源监测
+
+资源监测面板通过 portal 挂到 body，使用应用内最高浮层 `z-index: 400`，保持在页面、弹窗和提示条之上；不要放回侧栏的层叠上下文。
 
 `src/features/debug/` 为开发构建按需加载的资源面板，入口位于左上角品牌下方。`services/resources.rs` 使用 Windows 进程 API 采样主进程及子进程，仅在 Windows debug_assertions 构建中编译采样实现。发布版必须拒绝调用采样命令。保持 2 秒非重叠采样、关闭及页面隐藏时清理定时器，不向浏览器预览填入虚假资源数据。CPU 按进程 ID 与创建时间匹配两次采样，内存单位为 MiB，统计口径说明保留在 README 和验收文档中，不在监测面板底部显示。

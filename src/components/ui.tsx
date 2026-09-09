@@ -6,6 +6,8 @@ import type { Cover } from '../types/models';
 import { motion, useIsPresent } from 'motion/react';
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { easeOut } from './Motion';
+import { coverSafety, useContentSafety } from '../lib/contentSafety';
+import safetyPlaceholder from '../assets/safety-cover.png';
 
 const imagePromises = new Map<string, Promise<Cover>>();
 export function CoverImage({
@@ -17,6 +19,7 @@ export function CoverImage({
   alt: string;
   className?: string;
 }) {
+  const safety = coverSafety(cover, useContentSafety());
   const [src, setSrc] = useState('');
   const [failed, setFailed] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -24,6 +27,7 @@ export function CoverImage({
     setSrc('');
     setFailed(false);
     let alive = true;
+    if (safety !== 'visible') return;
     if (cover?.localPath) {
       setSrc(asset(cover.localPath));
       return;
@@ -61,10 +65,23 @@ export function CoverImage({
       alive = false;
       observer.disconnect();
     };
-  }, [cover?.url, cover?.localPath]);
+  }, [cover?.url, cover?.localPath, safety]);
   return (
     <div ref={ref} className={`cover-image ${className}`}>
-      {src && !failed ? (
+      {safety === 'hidden' ? (
+        <div className="safety-cover" role="img" aria-label="安全审查已隐藏此封面">
+          <img src={safetyPlaceholder} alt="" />
+          <div className="safety-cover-caption">
+            <strong>封面已隐藏</strong>
+            <span>已开启安全审查 · 可在设置中调整</span>
+          </div>
+        </div>
+      ) : safety === 'unknown' ? (
+        <div className="cover-placeholder">
+          <ImageIcon size={30} strokeWidth={1} />
+          <span>封面分级待更新</span>
+        </div>
+      ) : src && !failed ? (
         <img
           src={src}
           alt={alt}

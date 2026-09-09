@@ -67,13 +67,10 @@ pub async fn api(
     if !resp.status().is_success() {
         return Err(status_error(resp.status()));
     }
-    let mut data: Value = resp
+    let data: Value = resp
         .json()
         .await
         .map_err(|_| "网站响应不是有效的模型数据".to_string())?;
-    if settings.safe_content {
-        filter_safe_images(&mut data)
-    }
     Ok(data)
 }
 
@@ -149,24 +146,6 @@ fn parse_model_tags(data: &Value) -> Result<Vec<String>, String> {
     Ok(tags)
 }
 
-fn filter_safe_images(v: &mut Value) {
-    match v {
-        Value::Object(map) => {
-            if let Some(Value::Array(images)) = map.get_mut("images") {
-                images.retain(|i| i["nsfwLevel"].as_u64().unwrap_or(1) <= 1);
-            }
-            for value in map.values_mut() {
-                filter_safe_images(value)
-            }
-        }
-        Value::Array(a) => {
-            for v in a {
-                filter_safe_images(v)
-            }
-        }
-        _ => {}
-    }
-}
 fn text(v: &Value, k: &str) -> String {
     v[k].as_str().unwrap_or_default().into()
 }
@@ -211,6 +190,7 @@ pub fn version(v: &Value, model_id: u64) -> ModelVersion {
                     .collect()
             })
             .unwrap_or_default(),
+        images_classified: true,
         images: v["images"]
             .as_array()
             .map(|a| {
@@ -220,6 +200,7 @@ pub fn version(v: &Value, model_id: u64) -> ModelVersion {
                     .map(|i| Cover {
                         url: text(i, "url"),
                         local_path: String::new(),
+                        nsfw_level: Some(i["nsfwLevel"].as_u64().unwrap_or(1)),
                         meta: i.get("meta").filter(|v| v.is_object()).cloned(),
                     })
                     .collect()
@@ -456,16 +437,19 @@ mod tests {
         assert!(status_error(StatusCode::TOO_MANY_REQUESTS).contains("频繁"));
     }
     #[test]
-    fn safe_mode_filters_version_images() {
-        let mut v = serde_json::json!({"items":[{"modelVersions":[{"images":[{"nsfwLevel":1},{"nsfwLevel":4}]}]}]});
-        filter_safe_images(&mut v);
-        assert_eq!(
-            v["items"][0]["modelVersions"][0]["images"]
-                .as_array()
-                .unwrap()
-                .len(),
-            1
+    fn image_ratings_are_preserved_without_discarding_restricted_covers() {
+        let v = version(
+            &serde_json::json!({"images": [
+                {"url": "safe", "nsfwLevel": 1},
+                {"url": "restricted", "nsfwLevel": 4},
+                {"url": "video", "type": "video", "nsfwLevel": 1}
+            ]}),
+            1,
         );
+        assert!(v.images_classified);
+        assert_eq!(v.images.len(), 2);
+        assert_eq!(v.images[0].nsfw_level, Some(1));
+        assert_eq!(v.images[1].nsfw_level, Some(4));
     }
     #[test]
     fn links() {
