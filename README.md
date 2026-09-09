@@ -1,10 +1,26 @@
 # LoRA Studio
 
-面向 Windows 的本地 LoRA 管理器。Rust 后端 + Tauri 2 桌面窗口 + React/TypeScript 界面，默认使用 civitai.red。
+<p align="center">
+  <img src="docs/design/lora-studio-chibi-icon-v1.png" width="180" alt="LoRA Studio Q 版模型管理助手" />
+</p>
+
+<p align="center"><strong>模型与灵感，井然有序</strong></p>
+
+LoRA Studio 是面向 Windows 的本地 LoRA 模型管理工具，适合使用 ComfyUI、需要整理模型和记录效果的创作者。在一个桌面应用里浏览与下载模型、管理本地文件、整理触发词，并保存提示词配方和效果图，让下次使用模型时更容易找到合适的搭配。
+
+## 主要功能
+
+- **本地模型库**：扫描目录或手动添加模型，维护别名、标签、备注、收藏和封面。
+- **在线发现与下载**：默认通过 civitai.red 搜索模型、查看版本，支持暂停、继续、重试和文件校验。
+- **触发词与效果记录**：为不同触发词组合保存效果图和备注，复制当前组合的提示词。
+- **提示词配方**：按模型版本保存正向与负向提示词、模型权重和 CLIP 权重。
+- **ComfyUI 目录集成**：绑定本地目录后将模型下载到 `models/loras`，也可独立登记已有文件。
+
+应用专注于模型管理和使用记录，图像生成由你在 ComfyUI 中完成。采用 Tauri 2、Rust、React 和 TypeScript 构建，管理数据保存在本机。
 
 ## 开始使用
 
-按下文“本地开发”准备环境并执行 `npm run tauri -- build`，安装 `src-tauri/target/release/bundle/nsis/` 中生成的 Windows 安装包，然后打开 **LoRA Studio**。
+按照下文的[本地开发](#本地开发)说明准备环境并执行 `npm run tauri -- build`，安装 `src-tauri/target/release/bundle/nsis/` 中生成的 Windows 安装包，然后打开 **LoRA Studio**。
 
 仓库包含源码、设计图和验收记录；安装包、模型文件、用户数据库与本机缓存不纳入 Git。
 
@@ -33,7 +49,7 @@
 - 复制组合提示词会合并官方触发词、自定义触发词与正向提示词，重复的触发词只保留一次；负向提示词单独复制。权重请填入 ComfyUI 节点。
 - 模型详情可以选择网站图片、导入本地 PNG/JPEG/WebP、恢复网站封面。
 - 同一版本的多个本地文件共享版本配方；未匹配文件具有独立配方。成功绑定网站版本时迁移配方关联。
-- “移出管理库”保留文件与配方；“删除模型文件”经确认后移入 Windows 回收站。
+- 移出管理库保留文件与配方；删除模型文件经确认后移入 Windows 回收站。
 
 ## 下载与网络
 

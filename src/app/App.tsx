@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
-  Layers,
   Folder,
   Compass,
   Download,
@@ -367,7 +366,7 @@ export default function App() {
         <div className="sidebar-drag-area" data-tauri-drag-region aria-hidden="true" />
         <div className="brand" data-tauri-drag-region>
           <div className="brand-mark">
-            <Layers size={31} strokeWidth={2.3} />
+            <img src="/lora-studio-icon.png" alt="" draggable={false} />
           </div>
           <div>
             <strong>LoRA Studio</strong>

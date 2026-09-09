@@ -269,9 +269,12 @@ progress::-webkit-progress-value {
   flex-shrink: 0;
   width: 49px;
   height: 49px;
-  background: var(--accent);
-  color: #171c11;
-  border-radius: 13px;
+}
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .brand strong {
   font-size: 21px;
@@ -1664,7 +1667,6 @@ button.card-open:active {
   .brand-mark {
     width: 42px;
     height: 42px;
-    border-radius: 11px;
   }
   .brand small {
     font-size: 10px;
@@ -1744,9 +1746,6 @@ button.card-open:active {
   .brand-mark {
     width: 37px;
     height: 37px;
-  }
-  .brand-mark svg {
-    width: 26px;
   }
   .main {
     padding-left: 20px;

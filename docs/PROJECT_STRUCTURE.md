@@ -41,6 +41,7 @@
 │   ├── OAUTH_SETUP.md          API 密钥与自动登录配置
 │   ├── design/                 设计规范、效果图与生成提示词
 │   └── verification/           历史验收记录、截图与结果数据
+├── public/                     前端静态素材，包括应用图标
 ├── index.html                  Vite HTML 入口
 ├── package.json                前端依赖与项目命令
 ├── package-lock.json           前端依赖锁定文件

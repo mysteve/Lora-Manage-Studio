@@ -1,5 +1,13 @@
 # LoRA Studio visual specification
 
+## Project icon
+
+The current project icon is `lora-studio-chibi-icon-v1.png`, an original chibi model-library assistant generated with the built-in ImageGen tool. It uses the existing charcoal and lime palette. The full prompt is saved in `lora-studio-chibi-icon-v1-prompt.txt`. The earlier `logo.svg` remains as a historical design asset.
+
+Regenerate the desktop icon set from the repository root with `npm run tauri -- icon docs/design/lora-studio-chibi-icon-v1.png --output src-tauri/icons`, then copy `src-tauri/icons/128x128@2x.png` to `public/lora-studio-icon.png` for the sidebar and favicon. README displays the source artwork directly.
+
+## Interface
+
 Generated using the built-in ImageGen tool. Main library establishes the design; detail and discovery use it as image reference. Download image was regenerated with a text style reference after two image-edit service network failures. Its extraneous sidebar labels are not product requirements: all implemented pages use the library navigation.
 
 - Canvas: 1600 × 1000 reference; minimum 1000 × 680; main verification at 1280 × 800.
