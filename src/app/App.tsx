@@ -402,24 +402,6 @@ export default function App() {
             <SettingsIcon size={21} />
             设置
           </button>
-          <button
-            className="comfy-card"
-            onClick={() => setShowSettings(true)}
-            title="绑定或更换 ComfyUI 根目录"
-          >
-            <div>
-              <span className="comfy-name">
-                <Layers size={15} />
-                ComfyUI
-              </span>
-              <ChevronRight size={15} />
-            </div>
-            <span className={`connection ${settings.comfyRoot ? 'connected' : ''}`}>
-              <i />
-              {settings.comfyRoot ? '已绑定目录' : '未绑定目录'}
-            </span>
-            <small title={settings.comfyRoot}>{settings.comfyRoot || '点击绑定 ComfyUI 根目录'}</small>
-          </button>
           <span className="app-version">
             LoRA Studio <span>v0.1.0</span>
           </span>
@@ -436,15 +418,7 @@ export default function App() {
               <strong>{selected.model.name}</strong>
             </>
           )}
-          <span className="top-status">
-            {preview ? (
-              '设计验收预览 · 示例数据'
-            ) : (
-              <>
-                <span className="tiny-dot" /> 本地优先 · 灵感常在
-              </>
-            )}
-          </span>
+          {preview && <span className="top-status">设计验收预览 · 示例数据</span>}
         </div>
         {initialError && <ErrorBox message={initialError} retry={() => void initialize()} />}
         {detailBusy ? (
