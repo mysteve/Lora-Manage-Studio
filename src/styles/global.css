@@ -1562,10 +1562,24 @@ button.card-open:active {
 .settings-page {
   max-width: 1120px;
   margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 20px;
+  align-items: center;
+}
+.settings-page .page-header {
+  margin: 8px 0 18px;
+}
+.settings-page .page-header p {
+  margin-top: 5px;
+}
+.settings-page .settings-content {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 .settings-page .settings-content > [role='tabpanel'] > section {
   background: var(--surface);
-  padding: 24px;
+  padding: 20px;
   border: 1px solid var(--border);
   border-radius: 12px;
 }
@@ -2143,8 +2157,8 @@ button.api-key-help {
 .settings-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
-  padding-bottom: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 0;
   border-bottom: 1px solid var(--border);
 }
 .settings-tabs [role='tab'] {
@@ -2167,14 +2181,95 @@ button.api-key-help {
   border-radius: 12px;
 }
 .settings-storage-inline {
-  margin-top: 28px;
-  padding-top: 22px;
+  margin-top: 16px;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
 }
 .settings-content .settings-actions {
-  margin-top: 24px;
-  padding: 20px 0 0;
+  margin-top: 16px;
+  padding: 14px 0 0;
   border-top: 1px solid var(--border);
+}
+.settings-content h2 {
+  margin-bottom: 12px;
+}
+.settings-content .field {
+  gap: 6px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+.settings-content .field-help {
+  margin: 6px 0 12px;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.settings-content .api-access {
+  margin-bottom: 14px;
+}
+.settings-content .api-access-heading {
+  margin-bottom: 10px;
+}
+.settings-content .settings-safety {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+#settings-panel-website .api-access-actions {
+  margin-top: 8px;
+}
+#settings-panel-website .api-key-help {
+  margin-top: 8px;
+}
+.settings-content .ai-access fieldset {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+}
+.ai-access fieldset > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.ai-access fieldset > .ai-token-field {
+  grid-column: 1;
+}
+.ai-access fieldset > .ai-token-actions {
+  grid-column: 2;
+  align-self: end;
+  margin: 0 0 8px;
+}
+.ai-access fieldset > .api-access-actions:last-child {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 14px;
+}
+@media (max-width: 1150px) {
+  .settings-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-page .page-header {
+    margin-bottom: 12px;
+  }
+  .settings-tabs {
+    margin-bottom: 14px;
+  }
+}
+@media (max-width: 760px) {
+  .settings-content .settings-two {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .settings-content .ai-access fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ai-access fieldset > .ai-token-actions {
+    grid-column: 1;
+  }
+  .settings-content .input-action {
+    flex-wrap: wrap;
+  }
+  .settings-tabs [role='tab'] {
+    padding: 8px 12px;
+  }
 }
 button.brand {
   justify-content: flex-start;

@@ -127,7 +127,7 @@ export function AiAccess() {
           填写服务商提供的基础地址，可包含 /v1；无需填写 /models 或
           /chat/completions。模型查询使用已保存的代理设置。
         </p>
-        <label className="field">
+        <label className="field ai-token-field">
           API 密钥 · {hasToken ? '已保存' : '未设置'}
           <input
             type="password"
@@ -139,7 +139,7 @@ export function AiAccess() {
             placeholder={hasToken ? '输入新密钥以替换' : '输入服务商的 API Key'}
           />
         </label>
-        <div className="api-access-actions">
+        <div className="api-access-actions ai-token-actions">
           <button
             disabled={!desktop || !token.trim() || !config.baseUrl.trim()}
             onClick={() =>
