@@ -1,9 +1,64 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Copy, GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { Copy, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { ask, copy } from '../../lib/api';
 import { composePrompt, moveSegment, type PromptDraft, type PromptSegment } from './composer';
 import './prompts.css';
 import { PromptPresets } from './PromptPresets';
+
+function DeleteSegment({ label, onDelete }: { label: string; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: PointerEvent) => {
+      if (!container.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    return () => document.removeEventListener('pointerdown', dismiss);
+  }, [open]);
+
+  return (
+    <div
+      className="prompt-delete"
+      ref={container}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (open && event.key === 'Escape') {
+          event.stopPropagation();
+          close();
+        }
+      }}
+    >
+      <button
+        ref={trigger}
+        className="prompt-delete-trigger icon-button"
+        aria-label={`删除${label}`}
+        title="删除片段"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Trash2 size={16} />
+      </button>
+      {open && (
+        <div className="prompt-delete-confirm" role="group" aria-label={`确认删除${label}`}>
+          <p>确定删除此片段？</p>
+          <div>
+            <button onClick={close}>取消</button>
+            <button className="danger" onClick={onDelete}>确认删除</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PromptComposer({
   draft,
@@ -168,56 +223,16 @@ export function PromptComposer({
                       >
                         <span />
                       </button>
-                      <details
-                        className="prompt-menu"
-                        onBlur={(event) => {
-                          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                            event.currentTarget.open = false;
+                      <DeleteSegment
+                        label={`片段 ${index + 1}`}
+                        onDelete={() => {
+                          onChange({ segments: draft.segments.filter((item) => item.id !== segment.id) });
+                          setAnnouncement('片段已删除');
+                          const next = visible[index + 1] ?? visible[index - 1];
+                          if (next) setFocusId(next.id);
+                          else document.getElementById(`prompt-tab-${kind}`)?.focus();
                         }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Escape') {
-                            event.currentTarget.open = false;
-                            event.currentTarget.querySelector('summary')?.focus();
-                            event.stopPropagation();
-                          }
-                        }}
-                      >
-                        <summary aria-label={`片段 ${index + 1} 更多操作`}>
-                          <MoreHorizontal size={18} />
-                        </summary>
-                        <div
-                          className="prompt-menu-items"
-                          onClick={(event) => {
-                            const details = event.currentTarget.closest('details');
-                            if (details) details.open = false;
-                          }}
-                        >
-                          <button disabled={index === 0} onClick={() => step(index, -1)}>
-                            <ArrowUp size={15} />
-                            上移
-                          </button>
-                          <button disabled={index === visible.length - 1} onClick={() => step(index, 1)}>
-                            <ArrowDown size={15} />
-                            下移
-                          </button>
-                          <button
-                            onClick={() =>
-                              update(segment.id, { kind: kind === 'positive' ? 'negative' : 'positive' })
-                            }
-                          >
-                            移至{kind === 'positive' ? '负向' : '正向'}
-                          </button>
-                          <button
-                            className="danger"
-                            onClick={() =>
-                              onChange({ segments: draft.segments.filter((item) => item.id !== segment.id) })
-                            }
-                          >
-                            <Trash2 size={15} />
-                            删除片段
-                          </button>
-                        </div>
-                      </details>
+                      />
                     </div>
                   </div>
                   <textarea
@@ -234,7 +249,6 @@ export function PromptComposer({
           ))}
         </div>
         <footer className="prompt-footer">
-          <span>已启用 {visible.filter((segment) => segment.enabled).length} 段</span>
           <button
             className="text-button"
             disabled={!draft.segments.length}

@@ -168,41 +168,55 @@
 .prompt-toggle[aria-checked='true'] span {
   transform: translateX(12px);
 }
-.prompt-menu {
+.prompt-delete {
   position: relative;
 }
-.prompt-menu summary {
+.prompt-delete-trigger.icon-button {
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  list-style: none;
+  padding: 0;
+  min-height: 26px;
+  min-width: 26px;
 }
-.prompt-menu summary::-webkit-details-marker {
-  display: none;
+.prompt-delete-trigger:hover,
+.prompt-delete-trigger[aria-expanded='true'] {
+  color: #f29a99;
 }
-.prompt-menu-items {
+.prompt-delete-confirm {
   position: absolute;
-  top: 35px;
+  top: calc(100% + 5px);
   right: 0;
-  width: 155px;
+  width: 172px;
   z-index: 5;
-  padding: 5px;
+  padding: 10px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: 0 8px 24px #0005;
 }
-.prompt-menu-items button {
+.prompt-delete-confirm p {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+.prompt-delete-confirm > div {
   display: flex;
-  width: 100%;
-  justify-content: flex-start;
-  border: 0;
-  font-size: 13px;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.prompt-delete-confirm button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.prompt-segment:has(.prompt-delete-confirm) {
+  z-index: 6;
 }
 .prompt-panel textarea {
   width: 100%;
@@ -233,7 +247,7 @@
 .prompt-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   border-top: 1px solid var(--border);
   padding-top: 14px;
   margin-top: 16px;
