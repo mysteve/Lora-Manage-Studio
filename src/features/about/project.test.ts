@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { compareRelease } from './project';
+import { compareRelease, PROJECT_URL, RELEASES_URL } from './project';
+import desktopCapability from '../../../src-tauri/capabilities/default.json';
 import { isAllowedExternalUrl } from '../../lib/urls';
 
 describe('版本更新', () => {
+  it('桌面外链权限同时允许项目仓库与发布页面', () => {
+    const opener = desktopCapability.permissions.find(
+      (permission) => typeof permission === 'object' && permission.identifier === 'opener:allow-open-url',
+    );
+    expect(opener).toBeDefined();
+    const allowed = typeof opener === 'object' ? opener.allow.map((entry) => entry.url) : [];
+    for (const url of [PROJECT_URL, RELEASES_URL]) {
+      expect(isAllowedExternalUrl(url)).toBe(true);
+      expect(allowed).toContain(url);
+    }
+    expect(allowed.filter((url) => url.includes('github.com'))).toEqual([PROJECT_URL, RELEASES_URL]);
+  });
   it('按数字比较正式版本，不按字符串排序', () => {
     expect(compareRelease('v0.10.0', '0.9.0')).toBe(1);
     expect(compareRelease('v0.1.0', '0.1.0')).toBe(0);

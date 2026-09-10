@@ -11,7 +11,17 @@
     "core:window:allow-start-dragging",
     "dialog:allow-open",
     "dialog:allow-confirm",
-    "opener:allow-open-url",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://github.com/mysteve/Lora-Manage-Studio" },
+        { "url": "https://github.com/mysteve/Lora-Manage-Studio/releases" },
+        { "url": "https://civitai.com/*" },
+        { "url": "https://civitai.red/*" },
+        { "url": "https://auth.civitai.com/login/oauth/device" },
+        { "url": "https://auth.civitai.com/login/oauth/device[?]*" }
+      ]
+    },
     "opener:allow-reveal-item-in-dir",
     "clipboard-manager:allow-write-text"
   ]

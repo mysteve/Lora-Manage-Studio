@@ -148,7 +148,7 @@ import CountUp from '../components/react-bits/CountUp';
 - 页面退出期间沿用 `inert`，避免操作即将卸载的内容。不要用每帧 React state 更新实现动画。
 - 多层弹窗各自保留控制其挂载的 AnimatePresence；确保 Escape 只关闭最上层。不要把固定定位的弹窗移入带 transform 的页面容器。
 - 静态图标使用 `lucide-react`。Morphicons 接收来自 `lucide` 的图标数据或 SVG 路径，不能直接传入 `lucide-react` 组件。新增形变图标优先扩展 StateIcon 的集中映射，并保持 `reducedMotion="user"`。
-- React Bits 当前按组件源码接入，已使用 CountUp，未安装整套组件包。新增组件先检查真实依赖和适用场景，保留来源、许可证及本地修改说明；不能把自写组件冒充 React Bits 原始组件。
+- React Bits 当前按组件源码接入，已使用 CountUp 和关于窗口图片的 ProfileCard 适配版，未安装整套组件包。新增组件先检查真实依赖和适用场景，保留来源、许可证及本地修改说明；不能把自写组件冒充 React Bits 原始组件。
 - JavaScript 动效使用项目自有 `useReducedMotion`；CSS 动效配合 `prefers-reduced-motion`。启用减少动态效果时显示最终状态，不能留下透明页面或未完成数字。
 - 卡片入场只对有限首批内容做短暂错峰；进度更新、筛选和数据刷新不能反复重挂整个页面或让所有卡片重新播放。避免给大列表统一加昂贵的布局动画或大面积模糊。
 - Motion 控制的 transform 不与 CSS 中负责定位的 transform 相互覆盖；提示条水平居中当前使用独立 `translate`。CountUp 内有嵌套 span，徽标背景与 padding 应只施加到外层。

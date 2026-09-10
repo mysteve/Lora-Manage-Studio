@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Github, Loader2, RefreshCw, Scale } from 'lucide-react';
 import { Modal } from '../../components/ui';
+import ProfileCard from '../../components/react-bits/ProfileCard';
 import { call, desktop, external } from '../../lib/api';
 import { APP_VERSION, PROJECT_URL, RELEASES_URL, compareRelease } from './project';
 import projectLicense from '../../../LICENSE?raw';
@@ -68,7 +69,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="关于 LoRA Studio" onClose={onClose} wide className="about-dialog">
       <div className="about-identity">
-        <img src="/lora-studio-icon-hd.png" width={192} height={192} alt="LoRA Studio 高清项目图标" />
+        <ProfileCard avatarUrl="/lora-studio-icon-hd.png" alt="LoRA Studio 高清项目图标" />
         <div>
           <span className="about-eyebrow">模型与灵感，井然有序</span>
           <h2>LoRA Studio</h2>

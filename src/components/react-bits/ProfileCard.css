@@ -1,0 +1,110 @@
+/* React Bits ProfileCard, adapted for the existing square character art. */
+.profile-card-wrapper {
+  --pointer-x: 50%;
+  --pointer-y: 50%;
+  --background-x: 50%;
+  --background-y: 50%;
+  --rotate-x: 0deg;
+  --rotate-y: 0deg;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  perspective: 500px;
+  isolation: isolate;
+}
+
+.profile-card-behind {
+  position: absolute;
+  inset: 10%;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--pointer-x) var(--pointer-y), var(--accent), transparent 70%);
+  filter: blur(22px);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.profile-card-surface {
+  position: relative;
+  transform: rotateX(var(--rotate-y)) rotateY(var(--rotate-x));
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+.profile-card-wrapper .profile-card-surface img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.profile-card-effects,
+.profile-card-shine,
+.profile-card-glare {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.profile-card-effects {
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.profile-card-shine {
+  background-image:
+    repeating-linear-gradient(0deg, var(--accent) 5%, #f3ffd2 10%, #a9c87c 15%, var(--accent) 20%),
+    repeating-linear-gradient(
+      -45deg,
+      #151a10 0%,
+      #cad8b4 3.8%,
+      #e3efcf 4.5%,
+      #cad8b4 5.2%,
+      #151a10 10%,
+      #151a10 12%
+    ),
+    radial-gradient(farthest-corner circle at var(--pointer-x) var(--pointer-y), #0002 12%, #0004 120%);
+  background-position:
+    0 var(--background-y),
+    var(--background-x) var(--background-y),
+    center;
+  background-size:
+    500% 500%,
+    300% 300%,
+    200% 200%;
+  background-blend-mode: color, hard-light;
+  mix-blend-mode: color-dodge;
+  filter: brightness(0.85) contrast(1.5) saturate(0.5);
+  opacity: 0.28;
+}
+
+.profile-card-glare {
+  background-image: radial-gradient(
+    farthest-corner circle at var(--pointer-x) var(--pointer-y),
+    #f3ffd2 0%,
+    transparent 70%
+  );
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+.profile-card-wrapper.active .profile-card-behind {
+  opacity: 0.4;
+}
+
+.profile-card-wrapper.active .profile-card-effects {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-card-surface {
+    transform: none;
+  }
+  .profile-card-effects,
+  .profile-card-behind {
+    display: none;
+    transition: none;
+  }
+}
