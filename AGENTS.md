@@ -69,9 +69,13 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | Rust 格式检查 | `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` |
 | Rust 静态检查 | `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` |
 | Windows 安装包构建 | `npm run tauri -- build` |
+| Release 版本一致性检查 | `npm run release:check` |
+| Windows x64 安装包及发布附件 | `npm run release:windows` |
 | 提交前差异检查 | `git diff --check` |
 
 桌面开发需要 Rust、Windows C++ 构建工具和 WebView2。先利用现有环境；缺失时明确说明，不擅自重装工具链。
+
+发布配置见 `docs/RELEASE.md`、`scripts/release.mjs` 和 `.github/workflows/release.yml`。默认 NSIS 包含 WebView2 离线安装程序及明确列出的文档和许可证资源；发布附件输出到被忽略的 `release/v<版本>/`。版本校验覆盖 npm、Tauri、Cargo 及锁定文件，推送版本标签后工作流只创建 Release 草稿。
 
 - 默认开发端口为 1420，设置了 `strictPort`。先检查已有服务，不随意终止占用端口的进程。临时浏览器预览可以指定其他端口，真实 Tauri 开发应保持 Vite 与 `tauri.conf.json` 的 devUrl 一致。
 - 浏览器界面验收使用开发服务器的 `http://127.0.0.1:1420/?preview`；其中包含明确标识的示例数据。`preview` 同时要求 `import.meta.env.DEV`，因此 `npm run preview` 提供的生产产物不会启用这些数据。

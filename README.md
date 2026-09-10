@@ -7,6 +7,8 @@
 LoRA Studio 是面向 Windows 的本地 LoRA 模型管理工具，帮助 ComfyUI 用户集中整理模型、触发词、提示词和效果图。支持在线搜索与下载模型、本地模型导入和分类管理，让模型更容易查找、使用和复用。
 
 
+安装与发布：用户安装步骤见 [安装说明](docs/INSTALL.md)。开发者运行 `npm run release:windows` 可生成包含 WebView2 离线安装程序的 Windows x64 安装包，产物在 `release/v<版本>/`。版本配置、GitHub Release 草稿工作流和验收步骤见 [发布指南](docs/RELEASE.md)。
+
 ## 许可证
 
 LoRA Studio 的自有代码采用 [MIT License](LICENSE)，版权声明为 `Copyright (c) 2026 LoRA Studio contributors`。
