@@ -17,7 +17,6 @@ import {
   Link,
   FolderSearch,
   ArrowUpRight,
-  ChevronRight,
   RefreshCw,
   Check,
   X,
@@ -30,6 +29,8 @@ import {
 import { ask, call, desktop, preview, reveal } from '../lib/api';
 import { Badge, CoverImage, Empty, ErrorBox, Loading, Modal, SearchInput } from '../components/ui';
 import { bytes, count, matchesEntry, statusLabels } from '../lib/utils';
+import { PromptComposer } from '../features/prompts/PromptComposer';
+import type { PromptDraft } from '../features/prompts/composer';
 import { Detail } from '../features/models/Detail';
 import { AddLocalModel } from '../features/models/AddLocalModel';
 import { AboutDialog } from '../features/about/AboutDialog';
@@ -43,7 +44,6 @@ import type {
   DownloadTask,
   LibraryEntry,
   Page,
-  Recipe,
   RemoteModel,
   ScanProgress,
   SearchResult,
@@ -57,7 +57,7 @@ const pageTitles: Record<Page, string> = {
   discover: '在线发现',
   downloads: '下载中心',
   favorites: '收藏模型',
-  recipes: '提示词配方',
+  recipes: '词句组合',
   outputs: '输出结果',
   settings: '设置',
 };
@@ -66,7 +66,7 @@ const subtitles: Record<Page, string> = {
   discover: '探索新的风格，让灵感落地。',
   downloads: '灵感正在抵达，下载完成后自动安装到 ComfyUI。',
   favorites: '把喜欢的风格，留在手边。',
-  recipes: '保存每一次恰到好处的表达。',
+  recipes: '自由编写提示词片段，按顺序组合使用。',
   outputs: '查看 ComfyUI 输出的图像。',
   settings: '管理工作空间、网站访问与 AI 接入。',
 };
@@ -91,7 +91,7 @@ export default function App() {
   const [link, setLink] = useState('');
   const [library, setLibrary] = useState<LibraryEntry[]>([]);
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [promptDraft, setPromptDraft] = useState<PromptDraft>({ segments: [] });
   const [initializing, setInitializing] = useState(true);
   const [initialError, setInitialError] = useState('');
   const [scan, setScan] = useState<ScanProgress | null>(null);
@@ -222,10 +222,6 @@ export default function App() {
       clearTimeout(debounce);
     };
   }, [loadLibrary, loadTasks, notify]);
-  useEffect(() => {
-    if (page === 'recipes')
-      void perform(async () => setRecipes(await call<Recipe[]>('list_recipes', { owner: null })));
-  }, [page, selected, perform]);
   const doSearch = useCallback(
     async (
       cursor: string | null = null,
@@ -454,7 +450,7 @@ export default function App() {
           <button className={page === 'recipes' ? 'active' : ''} onClick={() => navigate('recipes')}>
             {page === 'recipes' && <NavIndicator />}
             <Sparkles size={21} />
-            提示词配方
+            词句组合
           </button>
         </nav>
         <div className="sidebar-bottom">
@@ -987,56 +983,7 @@ export default function App() {
                   </>
                 )}
                 {page === 'recipes' && (
-                  <>
-                    <div className="toolbar">
-                      <SearchInput value={query} onChange={setQuery} placeholder="搜索配方名称或提示词…" />
-                    </div>
-                    <div className="recipe-grid">
-                      {recipes
-                        .filter((r) =>
-                          [r.name, r.positive, r.negative]
-                            .join(' ')
-                            .toLowerCase()
-                            .includes(query.toLowerCase()),
-                        )
-                        .map((r) => {
-                          const e = library.find(
-                            (e) => (e.version ? `version:${e.version.id}` : `local:${e.id}`) === r.owner,
-                          );
-                          return (
-                            <button
-                              className="recipe-card"
-                              key={r.id}
-                              onClick={() => {
-                                if (e) openLocal(e, r.id);
-                                else if (r.owner.startsWith('version:')) {
-                                  setLink(`https://civitai.red/api/download/models/${r.owner.split(':')[1]}`);
-                                  setImportOpen(true);
-                                }
-                              }}
-                            >
-                              <Sparkles size={20} />
-                              <h2>{r.name}</h2>
-                              <small>{e?.name ?? `模型版本 ${r.owner.split(':')[1]}`}</small>
-                              <p>{r.positive || '还没有正向提示词'}</p>
-                              <div>
-                                <Badge>MODEL {r.modelWeight}</Badge>
-                                <Badge>CLIP {r.clipWeight}</Badge>
-                                <ChevronRight size={17} />
-                              </div>
-                            </button>
-                          );
-                        })}
-                    </div>
-                    {!recipes.length && (
-                      <Empty
-                        icon={<Sparkles size={32} />}
-                        title="把好用的提示词，存成配方"
-                        description="打开一个模型，在详情页创建配方。官方触发词与个人提示词分别保存，随时复制使用。"
-                        action={<button onClick={() => navigate('library')}>打开我的模型</button>}
-                      />
-                    )}
-                  </>
+                  <PromptComposer draft={promptDraft} onChange={setPromptDraft} notify={notify} />
                 )}
               </>
             )}

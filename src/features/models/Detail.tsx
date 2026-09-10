@@ -304,7 +304,7 @@ export function Detail({
               </button>
             )}
             <button className={tab === 'recipe' ? 'active' : ''} onClick={() => setTab('recipe')}>
-              提示词配方
+              创作配方
             </button>
             <button className={tab === 'info' ? 'active' : ''} onClick={() => setTab('info')}>
               模型信息

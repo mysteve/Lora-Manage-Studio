@@ -16,7 +16,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 - 前端：React 19、TypeScript、Vite，使用 npm 和 `package-lock.json`。
 - 桌面端：Tauri 2、Rust 2021、Tokio；SQLite 保存应用数据，reqwest 处理网站访问和下载。
 - 界面：普通 CSS、Lucide 静态图标、Motion 动效、Morphicons 图标形变，以及按源码引入的 React Bits 组件。
-- 主导航：我的模型、在线发现、下载中心、收藏模型、提示词配方。设置使用内嵌页面，内部按工作空间、网站访问、AI 接入分为三个标签页，各自保存，切换标签保留草稿；详情由页面状态切换；当前没有引入前端路由库。
+- 主导航：我的模型、在线发现、下载中心、收藏模型、词句组合。设置使用内嵌页面，内部按工作空间、网站访问、AI 接入分为三个标签页，各自保存，切换标签保留草稿；详情由页面状态切换；当前没有引入前端路由库。
 - 绑定 ComfyUI 根目录后使用其 `models/loras` 目录，不要求 ComfyUI 正在运行，不重新加入运行检测或虚构连接状态。
 
 依赖的准确版本以当前清单及锁定文件为准。新增功能优先复用现有能力；不要为局部修改迁移框架、样式体系或整批升级依赖。
@@ -30,6 +30,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src/features/models/` | 模型导入、详情、资料编辑、触发词组合和预览图；`ImageGallery` 负责示例图切换及图片生成参数 |
 | `src/features/discover/` | 网站内容分类、基础模型筛选及相关组件 |
 | `src/features/about/` | 关于弹窗、统一版本号、发布版本比较及组件许可证示例；左上角品牌按钮打开 |
+| `src/features/prompts/` | 提示词片段命名、就地编辑、启停、拖动与键盘排序及正负向分组组合；仅通过顶部按钮添加片段；编辑区高度限制在窗口内，仅片段列表内部滚动，添加按钮和底部操作保持可见；草稿由 App 保存，切换页面保留；命名预设通过 localStorage 持久化，使用版本化数据和独立 preview 键，读取失败时禁止覆盖 |
 | `src/features/settings/` | ComfyUI 目录、代理、API 密钥及 AI 接入设置 |
 | `src/features/outputs/` | 输出结果图片列表、分页与放大预览；默认读取 ComfyUI 的 output，可在工作空间设置中自定义查看目录。按记录中的 LoRA 文件路径关联模型库，同名候选全部展示；打开库详情后返回恢复图片和页码 |
 | `src-tauri/src/services/outputs.rs` | 输出目录校验、递归图片扫描及打开目录；仅允许当前页图片通过本地资源协议访问，不跟随符号链接 |
@@ -181,3 +182,5 @@ import CountUp from '../components/react-bits/CountUp';
 资源监测面板通过 portal 挂到 body，使用应用内最高浮层 `z-index: 400`，保持在页面、弹窗和提示条之上；不要放回侧栏的层叠上下文。
 
 `src/features/debug/` 为开发构建按需加载的资源面板，入口位于左上角品牌下方。`services/resources.rs` 使用 Windows 进程 API 采样主进程及子进程，仅在 Windows debug_assertions 构建中编译采样实现。发布版必须拒绝调用采样命令。保持 2 秒非重叠采样、关闭及页面隐藏时清理定时器，不向浏览器预览填入虚假资源数据。CPU 按进程 ID 与创建时间匹配两次采样，内存单位为 MiB，统计口径说明保留在 README 和验收文档中，不在监测面板底部显示。
+
+词句组合使用 HTML5 拖动排序，Windows 窗口配置保持 dragDropEnabled 为 false，避免原生文件拖放接管页面拖动；当前没有原生文件拖入功能。
