@@ -202,23 +202,28 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
           '7': { class_type: 'SaveImage', inputs: { images: ['6', '0'] } },
         },
       };
-    case 'list_output_images':
-      if (Number(args.page) > 0 && new URLSearchParams(location.search).has('outputs-delay')) {
+    case 'list_output_images': {
+      const start = args.cursor ? Number(String(args.cursor).replace('preview-output:', '')) : 0;
+      const total = new URLSearchParams(location.search).has('outputs-preview') ? 65 : 0;
+      if (start > 0 && new URLSearchParams(location.search).has('outputs-delay')) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
       return {
         directory: settings.outputDir || `${settings.comfyRoot}\\output`,
         exists: true,
-        total: new URLSearchParams(location.search).has('outputs-preview') ? 65 : 0,
+        total,
+        startIndex: start,
+        nextCursor: start + 60 < total ? `preview-output:${start + 60}` : null,
         items: new URLSearchParams(location.search).has('outputs-preview')
           ? Array.from({ length: 65 }, (_, index) => ({
               path: `${outputSample}?sample=${index}`,
               name: `预览示例/图像_${index + 1}.png`,
               modified: 1789000000000 - index * 60000,
               size: 1565400,
-            })).slice(Number(args.page) * 60, (Number(args.page) + 1) * 60)
+            })).slice(start, start + 60)
           : [],
       };
+    }
     case 'open_output_directory':
       throw new Error('请在桌面应用中打开真实输出目录');
     case 'list_library':

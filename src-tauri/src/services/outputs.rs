@@ -1,5 +1,5 @@
 use crate::{types::Settings, AppState};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -51,14 +51,27 @@ pub struct OutputImages {
     exists: bool,
     total: usize,
     items: Vec<OutputImage>,
+    next_cursor: Option<String>,
+    start_index: usize,
 }
 
-fn scan(path: &Path, page: usize) -> Result<OutputImages, String> {
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OutputCursor {
+    version: u8,
+    directory: String,
+    modified: u64,
+    name: String,
+}
+
+fn scan(path: &Path, cursor: Option<&str>) -> Result<OutputImages, String> {
     let mut result = OutputImages {
         directory: path.to_string_lossy().into(),
         exists: false,
         total: 0,
         items: vec![],
+        next_cursor: None,
+        start_index: 0,
     };
     match std::fs::metadata(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(result),
@@ -67,6 +80,19 @@ fn scan(path: &Path, page: usize) -> Result<OutputImages, String> {
         Ok(_) => result.exists = true,
     }
     let root = path.canonicalize().map_err(|e| e.to_string())?;
+    let cursor = cursor
+        .map(|value| {
+            if value.len() > 32768 {
+                return Err("输出图片游标无效，请刷新列表".to_string());
+            }
+            let cursor: OutputCursor = serde_json::from_str(value)
+                .map_err(|_| "输出图片游标无效，请刷新列表".to_string())?;
+            if cursor.version != 1 || cursor.directory != root.to_string_lossy() {
+                return Err("输出目录已变化，请刷新列表".into());
+            }
+            Ok(cursor)
+        })
+        .transpose()?;
     let mut images = vec![];
     for entry in walkdir::WalkDir::new(&root).follow_links(false) {
         let entry = entry.map_err(|e| format!("无法读取输出目录：{e}"))?;
@@ -110,11 +136,31 @@ fn scan(path: &Path, page: usize) -> Result<OutputImages, String> {
             .then_with(|| a.name.cmp(&b.name))
     });
     result.total = images.len();
+    result.start_index = cursor.as_ref().map_or(0, |cursor| {
+        images.partition_point(|image| {
+            image.modified > cursor.modified
+                || (image.modified == cursor.modified && image.name <= cursor.name)
+        })
+    });
+    let has_more = images.len().saturating_sub(result.start_index) > 60;
     result.items = images
         .into_iter()
-        .skip(page.saturating_mul(60))
+        .skip(result.start_index)
         .take(60)
         .collect();
+    if has_more {
+        if let Some(last) = result.items.last() {
+            result.next_cursor = Some(
+                serde_json::to_string(&OutputCursor {
+                    version: 1,
+                    directory: root.to_string_lossy().into(),
+                    modified: last.modified,
+                    name: last.name.clone(),
+                })
+                .map_err(|e| e.to_string())?,
+            );
+        }
+    }
     Ok(result)
 }
 
@@ -122,10 +168,10 @@ fn scan(path: &Path, page: usize) -> Result<OutputImages, String> {
 pub async fn list_output_images(
     app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
-    page: usize,
+    cursor: Option<String>,
 ) -> Result<OutputImages, String> {
     let path = directory(&state.db.settings())?;
-    let result = tauri::async_runtime::spawn_blocking(move || scan(&path, page))
+    let result = tauri::async_runtime::spawn_blocking(move || scan(&path, cursor.as_deref()))
         .await
         .map_err(|e| e.to_string())??;
     for item in &result.items {
@@ -222,16 +268,49 @@ mod tests {
     fn scans_nested_images_with_pagination_and_missing_directory() {
         let dir = tempfile::tempdir().unwrap();
         let nested = dir.path().join("nested");
-        assert!(!scan(&nested, 0).unwrap().exists);
+        assert!(!scan(&nested, None).unwrap().exists);
         std::fs::create_dir(&nested).unwrap();
         for i in 0..65 {
             std::fs::write(nested.join(format!("{i:03}.PNG")), "image").unwrap();
         }
         std::fs::write(nested.join("workflow.json"), "{}").unwrap();
-        let result = scan(dir.path(), 0).unwrap();
+        let result = scan(dir.path(), None).unwrap();
         assert_eq!(result.total, 65);
         assert_eq!(result.items.len(), 60);
         assert!(result.items[0].name.starts_with("nested"));
-        assert_eq!(scan(dir.path(), 1).unwrap().items.len(), 5);
+        assert_eq!(
+            scan(dir.path(), result.next_cursor.as_deref())
+                .unwrap()
+                .items
+                .len(),
+            5
+        );
+    }
+
+    #[test]
+    fn cursor_survives_insertions_and_deleted_anchor_with_equal_timestamps() {
+        let dir = tempfile::tempdir().unwrap();
+        let timestamp = UNIX_EPOCH + std::time::Duration::from_secs(1000);
+        for i in 0..65 {
+            let file = std::fs::File::create(dir.path().join(format!("{i:03}.png"))).unwrap();
+            file.set_modified(timestamp).unwrap();
+        }
+        let first = scan(dir.path(), None).unwrap();
+        assert_eq!(first.items.last().unwrap().name, "059.png");
+        std::fs::remove_file(dir.path().join("059.png")).unwrap();
+        std::fs::write(dir.path().join("new.png"), "new").unwrap();
+        let second = scan(dir.path(), first.next_cursor.as_deref()).unwrap();
+        assert_eq!(
+            second
+                .items
+                .iter()
+                .map(|i| i.name.as_str())
+                .collect::<Vec<_>>(),
+            ["060.png", "061.png", "062.png", "063.png", "064.png"]
+        );
+        assert!(second.next_cursor.is_none());
+        let other = tempfile::tempdir().unwrap();
+        assert!(scan(other.path(), first.next_cursor.as_deref()).is_err());
+        assert!(scan(dir.path(), Some("invalid")).is_err());
     }
 }

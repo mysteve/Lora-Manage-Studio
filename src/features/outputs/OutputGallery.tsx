@@ -7,7 +7,7 @@ import { bytes } from '../../lib/utils';
 import type { LibraryEntry, Settings } from '../../types/models';
 import { OutputMetadata } from './OutputMetadata';
 import { OutputViewer } from './OutputViewer';
-import { adjacentOutput, OUTPUT_PAGE_SIZE } from './outputNavigation';
+import { adjacentOutput } from './outputNavigation';
 import { outputPageCache } from './outputPageCache';
 import { ZoomableOutput } from './ZoomableOutput';
 
@@ -21,10 +21,13 @@ interface OutputImages {
   directory: string;
   exists: boolean;
   total: number;
+  nextCursor: string | null;
+  startIndex: number;
   items: OutputImage[];
 }
 export interface OutputView {
   page: number;
+  cursors: (string | null)[];
   selected: OutputImage | null;
 }
 
@@ -46,7 +49,7 @@ export function OutputGallery({
   notify: (text: string, error?: boolean) => void;
 }) {
   const { page, selected } = view;
-  const setPage = (page: number) => onViewChange((previous) => ({ ...previous, page }));
+  const setPage = (page: number) => onViewChange((previous) => ({ ...previous, page, cursors: cache.history() }));
   const setSelected = (selected: OutputImage | null) =>
     onViewChange((previous) => ({ ...previous, selected }));
   const [revision, setRevision] = useState(0);
@@ -54,7 +57,7 @@ export function OutputGallery({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const cache = useMemo(
-    () => outputPageCache((page: number) => call<OutputImages>('list_output_images', { page })),
+    () => outputPageCache((cursor) => call<OutputImages>('list_output_images', { cursor }), revision === 0 ? view.cursors : [null]),
     [settings.comfyRoot, settings.outputDir, revision],
   );
   const navigationRequest = useRef(0);
@@ -73,19 +76,14 @@ export function OutputGallery({
         .get(page)
         .then((result) => {
           if (active) {
-            if (page > 0 && page * OUTPUT_PAGE_SIZE >= result.total) {
-              setPage(0);
-            } else {
-              setData(result);
-              onViewChange((previous) => ({
-                ...previous,
-                selected: previous.selected
-                  ? (result.items.find((item) => item.path === previous.selected?.path) ??
-                    result.items[0] ??
-                    null)
-                  : null,
-              }));
-            }
+            setData(result);
+            onViewChange((previous) => ({
+              ...previous,
+              cursors: cache.history(),
+              selected: previous.selected
+                ? (result.items.find((item) => item.path === previous.selected?.path) ?? result.items[0] ?? null)
+                : null,
+            }));
           }
         })
         .catch((e) => {
@@ -111,7 +109,7 @@ export function OutputGallery({
   useEffect(() => {
     if (!selected || !data || selectedIndex < 0) return;
     const nextPage =
-      selectedIndex >= data.items.length - 5 && (page + 1) * OUTPUT_PAGE_SIZE < data.total
+      selectedIndex >= data.items.length - 5 && !!data.nextCursor
         ? page + 1
         : selectedIndex < 5 && page > 0
           ? page - 1
@@ -137,7 +135,7 @@ export function OutputGallery({
   }, [cache, page, selectedIndex, !!selected, data]);
   const move = (direction: -1 | 1) => {
     if (busy || navigationLocked.current || !data) return;
-    const target = adjacentOutput(page, selectedIndex, data.total, direction);
+    const target = adjacentOutput(page, selectedIndex, data.items.length, !!data.nextCursor, direction);
     if (!target) return;
     if (target.page === page) setSelected(data.items[target.index]);
     else {
@@ -149,13 +147,13 @@ export function OutputGallery({
         .get(target.page)
         .then((result) => {
           if (request !== navigationRequest.current) return;
-          const item = result.items[target.index];
+          const item = target.index < 0 ? result.items.at(-1) : result.items[target.index];
           if (!item) {
             notify('输出目录内容已变化，请刷新列表', true);
             return;
           }
           setData(result);
-          onViewChange({ page: target.page, selected: item });
+          onViewChange({ page: target.page, selected: item, cursors: cache.history() });
         })
         .catch((e) => {
           if (request === navigationRequest.current) notify(String(e), true);
@@ -167,6 +165,10 @@ export function OutputGallery({
           }
         });
     }
+  };
+  const refresh = () => {
+    onViewChange({ page: 0, selected: null, cursors: [null] });
+    setRevision((value) => value + 1);
   };
   const perform = (operation: Promise<unknown>) => void operation.catch((e) => notify(String(e), true));
   return (
@@ -187,10 +189,7 @@ export function OutputGallery({
           </button>
           <button
             disabled={busy || !configured}
-            onClick={() => {
-              setPage(0);
-              setRevision((value) => value + 1);
-            }}
+            onClick={refresh}
           >
             <RefreshCw size={17} />
             刷新
@@ -212,10 +211,10 @@ export function OutputGallery({
       ) : busy ? (
         <Loading text="正在读取输出结果…" />
       ) : error ? (
-        <ErrorBox message={error} retry={() => setRevision((value) => value + 1)} />
+        <ErrorBox message={error} retry={refresh} />
       ) : data && !data.items.length ? (
         <Empty
-          title={data.exists ? '还没有图像' : '输出目录尚不存在'}
+          title={page > 0 ? '当前页已没有图像' : data.exists ? '还没有图像' : '输出目录尚不存在'}
           description="支持 PNG、JPG、JPEG 和 WebP。生成图片后点击刷新，或在设置中指定实际输出目录。"
         />
       ) : (
@@ -236,15 +235,15 @@ export function OutputGallery({
           ))}
         </div>
       )}
-      {data && data.total > 60 && (
+      {data && (page > 0 || data.nextCursor) && (
         <div className="output-pagination">
           <button disabled={busy || page === 0} onClick={() => setPage(page - 1)}>
             上一页
           </button>
           <span>
-            {page + 1} / {Math.ceil(data.total / 60)}
+            {page + 1}
           </span>
-          <button disabled={busy || (page + 1) * 60 >= data.total} onClick={() => setPage(page + 1)}>
+          <button disabled={busy || !data.nextCursor} onClick={() => setPage(page + 1)}>
             下一页
           </button>
         </div>
@@ -262,11 +261,11 @@ export function OutputGallery({
         {selected && (
           <OutputViewer
             name={selected.name}
-            position={selectedIndex < 0 ? 0 : page * OUTPUT_PAGE_SIZE + selectedIndex + 1}
+            position={selectedIndex < 0 ? 0 : (data?.startIndex ?? 0) + selectedIndex + 1}
             total={data?.total ?? 0}
             busy={busy || turning}
-            canPrevious={!!data && !!adjacentOutput(page, selectedIndex, data.total, -1)}
-            canNext={!!data && !!adjacentOutput(page, selectedIndex, data.total, 1)}
+            canPrevious={!!data && !!adjacentOutput(page, selectedIndex, data.items.length, !!data.nextCursor, -1)}
+            canNext={!!data && !!adjacentOutput(page, selectedIndex, data.items.length, !!data.nextCursor, 1)}
             onMove={move}
             onClose={() => {
               returnFocus.current = selected.path;
@@ -288,7 +287,7 @@ export function OutputGallery({
             }
           >
             <ZoomableOutput src={asset(selected.path)} name={selected.name} onMove={move} />
-            {error && <ErrorBox message={error} retry={() => setRevision((value) => value + 1)} />}
+            {error && <ErrorBox message={error} retry={refresh} />}
           </OutputViewer>
         )}
       </AnimatePresence>

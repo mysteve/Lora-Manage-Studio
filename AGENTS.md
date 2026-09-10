@@ -32,7 +32,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src/features/about/` | 关于弹窗、统一版本号、发布版本比较及组件许可证示例；左上角品牌按钮打开 |
 | `src/features/prompts/` | 提示词片段命名、就地编辑、启停、拖动与键盘排序及正负向分组组合；仅通过顶部按钮添加片段；编辑区高度限制在窗口内，仅片段列表内部滚动，添加按钮和底部操作保持可见；草稿由 App 保存，切换页面保留；命名预设通过 localStorage 持久化，使用版本化数据和独立 preview 键，读取失败时禁止覆盖 |
 | `src/features/settings/` | ComfyUI 目录、代理、API 密钥及 AI 接入设置 |
-| `src/features/outputs/` | 输出结果图片列表、分页与沉浸式预览；OutputViewer 铺满应用窗口，方向键和两侧按钮支持跨页切图，Esc 返回，生成参数按需展开；图片点击放大两倍、拖动查看、再次点击还原，切图重置缩放；接近页边界预取相邻页，等待时保留当前图片，刷新或更换目录清除缓存；默认读取 ComfyUI 的 output，可在工作空间设置中自定义查看目录。按记录中的 LoRA 文件路径关联模型库，同名候选全部展示；打开库详情后返回恢复图片和页码 |
+| `src/features/outputs/` | 输出结果图片列表、游标分页与沉浸式预览；每页最多 60 张，以修改时间降序和相对文件名升序为游标边界，保留历史游标，刷新或更换目录重置；分页只显示上一页、当前页、下一页，不按总数推算可跳页；OutputViewer 铺满应用窗口，方向键和两侧按钮支持跨页切图，Esc 返回，生成参数按需展开；图片点击放大两倍、拖动查看、再次点击还原，切图重置缩放；接近页边界预取相邻页，等待时保留当前图片，刷新或更换目录清除缓存；默认读取 ComfyUI 的 output，可在工作空间设置中自定义查看目录。按记录中的 LoRA 文件路径关联模型库，同名候选全部展示；打开库详情后返回恢复图片和页码 |
 | `src-tauri/src/services/outputs.rs` | 输出目录校验、递归图片扫描及打开目录；仅允许当前页图片通过本地资源协议访问，不跟随符号链接 |
 | `src-tauri/src/services/output_metadata.rs` | 读取输出图片的 PNG 文本和 JPEG/WebP EXIF 生成记录，限制文本大小，保留 64 位种子精度；前端 `generationMetadata.ts` 整理采样节点、提示词和模型信息 |
 | `src/components/ui.tsx` | Modal、CoverImage、SearchInput、Badge、Empty、Loading、ErrorBox |
@@ -47,6 +47,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src-tauri/src/lib.rs` | 应用初始化、共享状态和命令注册 |
 | `src-tauri/src/types.rs` | Rust 数据结构与序列化约定 |
 | `src-tauri/src/services/updates.rs` | 通过 GitHub 正式发布 API 检查更新，沿用代理配置，不自动安装 |
+| `src-tauri/src/services/search_pagination.rs` | 聚合 C 站模型搜索游标：上游每批 100 条，界面每页最多 24 个；空批次继续读取，单次最多 8 批、总超时 30 秒；版本化游标记录上游位置和批内偏移，保留溢出结果，不能按空页或少于 limit 判断结束 |
 | `src-tauri/src/services/ai.rs` | AI 配置、按服务地址隔离的凭据及模型列表查询；暂不执行翻译 |
 | `src-tauri/src/services/cover_metadata.rs` | 后台补齐旧模型及下载记录的图片分级，仅合并预览资料，保留个人编辑和下载状态 |
 | `src-tauri/src/services/` | 网站访问、授权、下载、本地模型、目录绑定和预览图处理 |

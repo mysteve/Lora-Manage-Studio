@@ -85,7 +85,7 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
   const [page, setPage] = useState<Page>('library');
-  const [outputView, setOutputView] = useState<OutputView>({ page: 0, selected: null });
+  const [outputView, setOutputView] = useState<OutputView>({ page: 0, selected: null, cursors: [null] });
   const [settings, setSettings] = useState(defaultSettings);
   const [importOpen, setImportOpen] = useState(false);
   const [addLocalOpen, setAddLocalOpen] = useState(false);
@@ -528,7 +528,7 @@ export default function App() {
                 onClose={() => void navigate('library')}
                 onSaved={async (s) => {
                   if (s.comfyRoot !== settings.comfyRoot || s.outputDir !== settings.outputDir) {
-                    setOutputView({ page: 0, selected: null });
+                    setOutputView({ page: 0, selected: null, cursors: [null] });
                   }
                   setSettings(s);
                   if (s.safeContent !== settings.safeContent) {
@@ -795,7 +795,13 @@ export default function App() {
                         })}
                       </div>
                     ) : (
-                      <Empty title="暂时没有搜索结果" description="换个关键词或基础模型，再试一次。" />
+                      <Empty
+                        title={searchResult.nextCursor ? '当前批次没有匹配模型' : '暂时没有搜索结果'}
+                        description={searchResult.nextCursor ? '网站仍有后续结果，请点击下一页继续查找。' : '换个关键词或基础模型，再试一次。'}
+                      />
+                    )}
+                    {!searchBusy && !searchError && searchResult.items.length > 0 && searchResult.items.length < 24 && searchResult.nextCursor && (
+                      <p className="category-filter-hint" role="status">已找到部分匹配模型，网站仍有后续结果，可点击下一页继续查找。</p>
                     )}
                     {!searchBusy && !searchError && (
                       <DiscoverPagination page={remotePage} count={cursorStack.length} onPage={(target) => {

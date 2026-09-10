@@ -310,7 +310,7 @@ pub async fn search(
     cursor: Option<String>,
 ) -> Result<SearchResult, String> {
     let mut params = vec![
-        ("limit", "24".into()),
+        ("limit", super::search_pagination::BATCH_SIZE.to_string()),
         ("types", "LORA".into()),
         ("nsfw", (!settings.safe_content).to_string()),
         ("sort", sort),
@@ -324,31 +324,14 @@ pub async fn search(
     if !tag.trim().is_empty() {
         params.push(("tag", tag.trim().to_owned()))
     }
-    if let Some(c) = cursor {
-        params.push(("cursor", c))
-    }
-    let v = api(settings, "/api/v1/models", &params).await?;
-    let next = v["metadata"]["nextCursor"]
-        .as_str()
-        .map(String::from)
-        .or_else(|| v["metadata"]["nextCursor"].as_u64().map(|x| x.to_string()))
-        .or_else(|| {
-            v["metadata"]["nextPage"]
-                .as_str()
-                .and_then(|s| Url::parse(s).ok())
-                .and_then(|u| {
-                    u.query_pairs()
-                        .find(|(k, _)| k == "cursor")
-                        .map(|(_, v)| v.to_string())
-                })
-        });
-    Ok(SearchResult {
-        items: v["items"]
-            .as_array()
-            .map(|a| a.iter().map(model).collect())
-            .unwrap_or_default(),
-        next_cursor: next,
+    super::search_pagination::collect(cursor, |cursor| {
+        let mut params = params.clone();
+        if let Some(cursor) = cursor {
+            params.push(("cursor", cursor));
+        }
+        async move { api(settings, "/api/v1/models", &params).await }
     })
+    .await
 }
 pub fn safe_download_url(input: &str) -> Result<Url, String> {
     let u = Url::parse(input).map_err(|_| "下载地址无效")?;
