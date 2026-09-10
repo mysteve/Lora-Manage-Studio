@@ -28,11 +28,11 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src/main.tsx` | React 挂载、StrictMode、全局 MotionConfig |
 | `src/app/App.tsx` | 布局、导航、页面组合、跨页面状态和桌面事件订阅 |
 | `src/features/models/` | 模型导入、详情、资料编辑、触发词组合和预览图；`ImageGallery` 负责示例图切换及图片生成参数 |
-| `src/features/discover/` | 网站内容分类、基础模型筛选及相关组件 |
+| `src/features/discover/` | 网站内容分类、基础模型筛选及相关组件；DiscoverPagination 使用上一页、当前页和下一页的游标翻页交互，保留游标历史，搜索或筛选重新从第一页建立记录，不显示任意跳页入口或虚构总页数 |
 | `src/features/about/` | 关于弹窗、统一版本号、发布版本比较及组件许可证示例；左上角品牌按钮打开 |
 | `src/features/prompts/` | 提示词片段命名、就地编辑、启停、拖动与键盘排序及正负向分组组合；仅通过顶部按钮添加片段；编辑区高度限制在窗口内，仅片段列表内部滚动，添加按钮和底部操作保持可见；草稿由 App 保存，切换页面保留；命名预设通过 localStorage 持久化，使用版本化数据和独立 preview 键，读取失败时禁止覆盖 |
 | `src/features/settings/` | ComfyUI 目录、代理、API 密钥及 AI 接入设置 |
-| `src/features/outputs/` | 输出结果图片列表、分页与放大预览；默认读取 ComfyUI 的 output，可在工作空间设置中自定义查看目录。按记录中的 LoRA 文件路径关联模型库，同名候选全部展示；打开库详情后返回恢复图片和页码 |
+| `src/features/outputs/` | 输出结果图片列表、分页与沉浸式预览；OutputViewer 铺满应用窗口，方向键和两侧按钮支持跨页切图，Esc 返回，生成参数按需展开；图片点击放大两倍、拖动查看、再次点击还原，切图重置缩放；接近页边界预取相邻页，等待时保留当前图片，刷新或更换目录清除缓存；默认读取 ComfyUI 的 output，可在工作空间设置中自定义查看目录。按记录中的 LoRA 文件路径关联模型库，同名候选全部展示；打开库详情后返回恢复图片和页码 |
 | `src-tauri/src/services/outputs.rs` | 输出目录校验、递归图片扫描及打开目录；仅允许当前页图片通过本地资源协议访问，不跟随符号链接 |
 | `src-tauri/src/services/output_metadata.rs` | 读取输出图片的 PNG 文本和 JPEG/WebP EXIF 生成记录，限制文本大小，保留 64 位种子精度；前端 `generationMetadata.ts` 整理采样节点、提示词和模型信息 |
 | `src/components/ui.tsx` | Modal、CoverImage、SearchInput、Badge、Empty、Loading、ErrorBox |
@@ -109,7 +109,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `NavIndicator` | 主导航选中背景；共享 `layoutId="main-navigation"`，只在当前选中的主导航项内渲染 |
 | `StateIcon` | 需要在状态变化时形变的图标，支持 `eye`、`eyeOff`、`pause`、`play`、`retry`、`check`、`close`；默认尺寸 18 |
 | `Modal` | 导入、编辑、帮助等弹窗；默认通过 portal 挂载到 body，内置进入退出动效、Escape、Tab 焦点管理和关闭后焦点恢复 |
-| React Bits `CountUp` | 模型总数与基础模型数量；常用 `to`、`duration`，当前数量展示使用 0.45 秒；已适配系统偏好及最终数值的无障碍标签 |
+| 模型数量 | 模型总数与基础模型数量直接显示当前值，进入页面和数量更新时均不播放递增动画；CountUp 源码保留但当前未使用 |
 | `easeOut` | 共用缓动 `[0.22, 1, 0.36, 1]`，优先复用 |
 | `useReducedMotion` | 从 `src/lib/useReducedMotion.ts` 引入，使用 useSyncExternalStore 订阅系统偏好，支持运行期间变化 |
 | `global.css` 中的动效 | 卡片错峰入场、收藏反馈、设置与返回图标悬停、加载和下载状态反馈 |
@@ -120,7 +120,6 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 import { AnimatePresence } from 'motion/react';
 import { PageTransition, StateIcon } from '../components/Motion';
 import { Modal } from '../components/ui';
-import CountUp from '../components/react-bits/CountUp';
 
 // key 对应页面或详情身份，不包含下载进度、搜索输入等频繁变化的值。
 <AnimatePresence mode="wait" initial={false}>
@@ -143,17 +142,21 @@ import CountUp from '../components/react-bits/CountUp';
   <StateIcon name={paused ? 'play' : 'pause'} size={19} />
 </button>
 
-<CountUp to={modelCount} duration={0.45} />
+<span>{modelCount}</span>
 ```
 
 ### 动效实现规则
+
+- 模型卡片、输出结果卡片、详情主图和缩略图使用 2:3 竖向图片区，图片以 contain 完整显示；卡片悬停不放大裁切图片。下载行、关联模型等紧凑缩略图保留原有容器尺寸，图片同样完整显示。
+
+- 输出图片看图区域保持透明悬停背景；未放大时滚轮上下切图并限速，放大后滚轮以鼠标位置为中心在适应窗口的 1–8 倍之间缩放。滚轮缩回适应窗口后短暂抑制切图，参数面板保留自身滚动。
 
 - Motion 统一从 `motion/react` 导入，复用入口处的 MotionConfig；不额外安装另一份动画引擎处理已有能力。
 - 页面过渡约 200ms、弹窗约 160–200ms，保持短距离移动和克制的弹性。不要让动画阻塞搜索、下载操作或连续导航。
 - 页面退出期间沿用 `inert`，避免操作即将卸载的内容。不要用每帧 React state 更新实现动画。
 - 多层弹窗各自保留控制其挂载的 AnimatePresence；确保 Escape 只关闭最上层。不要把固定定位的弹窗移入带 transform 的页面容器。
 - 静态图标使用 `lucide-react`。Morphicons 接收来自 `lucide` 的图标数据或 SVG 路径，不能直接传入 `lucide-react` 组件。新增形变图标优先扩展 StateIcon 的集中映射，并保持 `reducedMotion="user"`。
-- React Bits 当前按组件源码接入，已使用 CountUp 和关于窗口图片的 ProfileCard 适配版，未安装整套组件包。新增组件先检查真实依赖和适用场景，保留来源、许可证及本地修改说明；不能把自写组件冒充 React Bits 原始组件。
+- React Bits 当前按组件源码接入，使用关于窗口图片的 ProfileCard 适配版，保留当前未使用的 CountUp 源码，未安装整套组件包。新增组件先检查真实依赖和适用场景，保留来源、许可证及本地修改说明；不能把自写组件冒充 React Bits 原始组件。
 - JavaScript 动效使用项目自有 `useReducedMotion`；CSS 动效配合 `prefers-reduced-motion`。启用减少动态效果时显示最终状态，不能留下透明页面或未完成数字。
 - 卡片入场只对有限首批内容做短暂错峰；进度更新、筛选和数据刷新不能反复重挂整个页面或让所有卡片重新播放。避免给大列表统一加昂贵的布局动画或大面积模糊。
 - Motion 控制的 transform 不与 CSS 中负责定位的 transform 相互覆盖；提示条水平居中当前使用独立 `translate`。CountUp 内有嵌套 span，徽标背景与 padding 应只施加到外层。

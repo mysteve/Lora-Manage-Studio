@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { NavIndicator, PageTransition, StateIcon, easeOut } from '../components/Motion';
-import CountUp from '../components/react-bits/CountUp';
 import { ContentSafetyContext } from '../lib/contentSafety';
 import { useLibraryCoverMetadata } from '../features/models/useLibraryCoverMetadata';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,6 +35,8 @@ import { AddLocalModel } from '../features/models/AddLocalModel';
 import { AboutDialog } from '../features/about/AboutDialog';
 import { APP_VERSION } from '../features/about/project';
 import { OutputGallery, type OutputView } from '../features/outputs/OutputGallery';
+import { DiscoverPagination } from '../features/discover/DiscoverPagination';
+import { rememberCursors } from '../features/discover/pagination';
 import { SettingsPanel } from '../features/settings/SettingsPanel';
 import { WindowControls } from '../components/WindowControls';
 import { BaseModelFilter } from '../features/discover/BaseModelFilter';
@@ -105,6 +106,7 @@ export default function App() {
   const [sort, setSort] = useState('Most Downloaded');
   const [searchResult, setSearchResult] = useState<SearchResult>({ items: [], nextCursor: null });
   const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
+  const [remotePage, setRemotePage] = useState(0);
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [searched, setSearched] = useState(false);
@@ -227,6 +229,7 @@ export default function App() {
       cursor: string | null = null,
       stack: (string | null)[] = [null],
       filters: { baseModel?: string; tag?: string; sort?: string } = {},
+      targetPage = 0,
     ) => {
       const seq = ++searchSeq.current;
       setSearchBusy(true);
@@ -242,7 +245,8 @@ export default function App() {
         });
         if (searchSeq.current === seq) {
           setSearchResult(result);
-          setCursorStack(stack);
+          setCursorStack(rememberCursors(stack, targetPage, result.nextCursor));
+          setRemotePage(targetPage);
         }
       } catch (e) {
         if (searchSeq.current === seq) setSearchError(String(e));
@@ -641,12 +645,12 @@ export default function App() {
                     <div className="filter-row">
                       <div className="chips">
                         <button className={!base ? 'selected' : ''} onClick={() => setBase('')}>
-                          全部模型 <CountUp to={library.length} duration={0.45} />
+                          全部模型 <span>{library.length}</span>
                         </button>
                         {bases.slice(0, 4).map((b) => (
                           <button key={b} className={base === b ? 'selected' : ''} onClick={() => setBase(b)}>
                             {b}
-                            <CountUp to={library.filter((e) => e.baseModel === b).length} duration={0.45} />
+                            <span>{library.filter((e) => e.baseModel === b).length}</span>
                           </button>
                         ))}
                       </div>
@@ -794,26 +798,9 @@ export default function App() {
                       <Empty title="暂时没有搜索结果" description="换个关键词或基础模型，再试一次。" />
                     )}
                     {!searchBusy && !searchError && (
-                      <div className="pagination">
-                        <button
-                          disabled={cursorStack.length <= 1}
-                          onClick={() => {
-                            const stack = cursorStack.slice(0, -1);
-                            void doSearch(stack[stack.length - 1], stack);
-                          }}
-                        >
-                          上一页
-                        </button>
-                        <span>{cursorStack.length}</span>
-                        <button
-                          disabled={!searchResult.nextCursor}
-                          onClick={() =>
-                            void doSearch(searchResult.nextCursor, [...cursorStack, searchResult.nextCursor])
-                          }
-                        >
-                          下一页
-                        </button>
-                      </div>
+                      <DiscoverPagination page={remotePage} count={cursorStack.length} onPage={(target) => {
+                        if (target !== remotePage) void doSearch(cursorStack[target], cursorStack, {}, target);
+                      }} />
                     )}
                   </>
                 )}

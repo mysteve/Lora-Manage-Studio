@@ -22,10 +22,30 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const scalar = (value: unknown) =>
   typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : '';
 
+function promptRecord(value: unknown): Record<string, unknown> | null {
+  for (let depth = 0; depth < 4; depth++) {
+    if (typeof value === 'string') {
+      try {
+        // 先保护 JSON 字符串，再将超出安全整数范围的数字转为字符串，避免种子精度丢失。
+        value = JSON.parse(
+          value.replace(/"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g, (token) =>
+            /^-?\d+$/.test(token) && !Number.isSafeInteger(Number(token)) ? `"${token}"` : token,
+          ),
+        );
+      } catch {
+        return null;
+      }
+    } else if (record(value) && 'prompt' in value) value = value.prompt;
+    else return record(value) ? value : null;
+  }
+  return record(value) ? value : null;
+}
+
 export function generationGroups(metadata: ImageMetadata): GenerationGroup[] {
   const graph: Record<string, Node> = Object.create(null);
-  if (record(metadata.prompt))
-    for (const [id, value] of Object.entries(metadata.prompt)) {
+  const source = promptRecord(metadata.prompt) ?? promptRecord(metadata.text.prompt);
+  if (source)
+    for (const [id, value] of Object.entries(source)) {
       if (record(value) && typeof value.class_type === 'string' && record(value.inputs))
         graph[id] = value as unknown as Node;
     }
@@ -49,17 +69,24 @@ export function generationGroups(metadata: ImageMetadata): GenerationGroup[] {
     if (visited.has(id) || visited.size > 32) return '';
     visited.add(id);
     const node = graph[id];
+    if (node.class_type === 'ImpactWildcardProcessor') {
+      // reproduce 保存的是本次使用的文本；不能重新展开通配符或采用随机生成模式的旧文本。
+      return node.inputs.mode === 'reproduce' ? valueOf(node.inputs.populated_text, visited) : '';
+    }
+    if (node.class_type === 'Seed (rgthree)') return valueOf(node.inputs.seed, visited);
     // 只解引用值节点，不尝试执行文本拼接、计算或其他自定义节点。
+    if (node.class_type === 'Reroute') return valueOf(node.inputs.value ?? node.inputs.input, visited);
     if (
-      /^(PrimitiveNode|PrimitiveString|PrimitiveInt|PrimitiveFloat|PrimitiveBoolean|String|INT|FLOAT)$/.test(
+      /^(PrimitiveNode|PrimitiveString|PrimitiveInt|PrimitiveFloat|PrimitiveBoolean|String|INT|FLOAT|easy int|easy float|easy string)$/.test(
         node.class_type,
       )
     ) {
-      return valueOf(node.inputs.value, visited);
+      return valueOf(node.inputs.value ?? node.inputs.text ?? node.inputs.string, visited);
     }
     return '';
   };
-  const prompts = (start: unknown) => {
+  const prompts = (start: unknown, polarity: 'positive' | 'negative') => {
+    if (typeof start === 'string') return start;
     const values: string[] = [];
     const pending = [link(start)];
     const visited = new Set<string>();
@@ -72,15 +99,17 @@ export function generationGroups(metadata: ImageMetadata): GenerationGroup[] {
         values.push('此分支的条件已清零');
         continue;
       }
-      if (node.class_type.startsWith('CLIPTextEncode')) {
-        for (const key of ['text', 'text_g', 'text_l', 't5xxl', 'clip_l', 'clip_g']) {
+      if (/TextEncode/i.test(node.class_type)) {
+        for (const key of ['text', 'prompt', 'text_g', 'text_l', 't5xxl', 'clip_l', 'clip_g']) {
           const value = valueOf(node.inputs[key]);
           if (value) values.push(value);
         }
       } else {
         for (const [key, value] of Object.entries(node.inputs)) {
           if (
-            /^(conditioning|conditioning_\d+|conditioning_to|conditioning_from|positive|negative)$/.test(key)
+            /^(conditioning|conditioning_\d+|conditioning_to|conditioning_from)$/.test(key) ||
+            key === polarity ||
+            (node.class_type === 'Reroute' && /^(value|input)$/.test(key))
           )
             pending.push(link(value));
         }
@@ -97,7 +126,11 @@ export function generationGroups(metadata: ImageMetadata): GenerationGroup[] {
       /^(KSampler|KSamplerAdvanced|SamplerCustom|SamplerCustomAdvanced)$/.test(node.class_type) &&
       (!outputs.length || reachable.has(id)),
   );
-  const groups: GenerationGroup[] = samplers.map(([id, node]) => {
+  // 自定义采样节点仍按明确的正负输入分组，不通过节点顺序猜测正负方向。
+  const sources = samplers.length
+    ? samplers
+    : Object.entries(graph).filter(([, node]) => 'positive' in node.inputs && 'negative' in node.inputs);
+  const groups: GenerationGroup[] = sources.map(([id, node]) => {
     const rows: ParameterRow[] = [];
     const loras: string[] = [];
     const add = (label: string, value: string) => {
@@ -128,12 +161,12 @@ export function generationGroups(metadata: ImageMetadata): GenerationGroup[] {
     add('模型与 LoRA', [...new Set(models)].join('\n') || '未识别到模型名称，请查看原始记录');
     add(
       '正向提示词',
-      prompts(node.inputs.positive ?? guider?.inputs.positive ?? guider?.inputs.conditioning) ||
+      prompts(node.inputs.positive ?? guider?.inputs.positive ?? guider?.inputs.conditioning, 'positive') ||
         '未识别到正向提示词，请查看原始记录',
     );
     add(
       '负向提示词',
-      prompts(node.inputs.negative ?? guider?.inputs.negative) || '未记录或未识别到负向提示词',
+      prompts(node.inputs.negative ?? guider?.inputs.negative, 'negative') || '未记录或未识别到负向提示词',
     );
     const labels: Record<string, string> = {
       seed: '随机种子',

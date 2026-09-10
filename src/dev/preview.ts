@@ -133,6 +133,31 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
       settings = args.settings;
       return settings;
     case 'output_image_metadata':
+      if (new URLSearchParams(location.search).get('metadata-preview') === 'wildcard') {
+        const prompt = {
+          '3': {
+            class_type: 'ImpactWildcardProcessor',
+            inputs: {
+              wildcard_text: '__landscape__',
+              populated_text: 'mountain, morning light',
+              mode: 'reproduce',
+            },
+          },
+          '4': {
+            class_type: 'ImpactWildcardProcessor',
+            inputs: { wildcard_text: '__negative__', populated_text: 'blurry, watermark', mode: 'reproduce' },
+          },
+          '45': { class_type: 'CLIPTextEncode', inputs: { text: ['3', 0] } },
+          '48': { class_type: 'CLIPTextEncode', inputs: { text: ['4', 0] } },
+          '40': { class_type: 'Seed (rgthree)', inputs: { seed: '812642747445401' } },
+          '42': { class_type: 'easy int', inputs: { value: 30 } },
+          '5': {
+            class_type: 'KSampler',
+            inputs: { positive: ['45', 0], negative: ['48', 0], seed: ['40', 0], steps: ['42', 0] },
+          },
+        };
+        return { width: 1024, height: 1024, text: { prompt: JSON.stringify(prompt) }, prompt: null };
+      }
       if (new URLSearchParams(location.search).get('metadata-preview') === 'empty') {
         return { width: 1024, height: 1024, text: {}, prompt: null };
       }
@@ -178,6 +203,9 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
         },
       };
     case 'list_output_images':
+      if (Number(args.page) > 0 && new URLSearchParams(location.search).has('outputs-delay')) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
       return {
         directory: settings.outputDir || `${settings.comfyRoot}\\output`,
         exists: true,
@@ -297,7 +325,7 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
             (!args.baseModel || m.versions.some((version) => version.baseModel === args.baseModel)) &&
             (!args.tag || m.tags.includes(args.tag)),
         ),
-        nextCursor: null,
+        nextCursor: new URLSearchParams(location.search).has('pagination-preview') && Number(args.cursor ?? 1) < 12 ? String(Number(args.cursor ?? 1) + 1) : null,
       };
     case 'model_details':
       return models.find((m) => m.id === args.id);

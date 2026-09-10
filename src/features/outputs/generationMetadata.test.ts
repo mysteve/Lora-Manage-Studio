@@ -29,6 +29,50 @@ const graph = {
 const metadata = (prompt: unknown): ImageMetadata => ({ width: 1024, height: 1024, text: {}, prompt });
 
 describe('输出图片生成信息', () => {
+  it('沿真实连接读取 Impact 通配符已保存的正负文本及外部种子和步数', () => {
+    const prompt = {
+      ...graph,
+      '3': node('ImpactWildcardProcessor', {
+        wildcard_text: '__landscape__',
+        populated_text: 'mountain, morning light',
+        mode: 'reproduce',
+      }),
+      '4': node('ImpactWildcardProcessor', {
+        wildcard_text: '__negative__',
+        populated_text: 'blurry, watermark',
+        mode: 'reproduce',
+      }),
+      '45': node('CLIPTextEncode', { text: ['3', 0] }),
+      '48': node('CLIPTextEncode', { text: ['4', 0] }),
+      '40': node('Seed (rgthree)', { seed: '18446744073709551615' }),
+      '42': node('easy int', { value: 30 }),
+      '5': node('KSampler', { positive: ['45', 0], negative: ['48', 0], seed: ['40', 0], steps: ['42', 0] }),
+    };
+    const result = generationGroups({ ...metadata(null), text: { prompt: JSON.stringify(prompt) } });
+    expect(result[0].rows).toEqual(
+      expect.arrayContaining([
+        { label: '正向提示词', value: 'mountain, morning light' },
+        { label: '负向提示词', value: 'blurry, watermark' },
+        { label: '随机种子', value: '18446744073709551615' },
+        { label: '步数', value: '30' },
+      ]),
+    );
+  });
+  it('原始 JSON 的大整数不丢精度，随机通配符模式不误用旧文本', () => {
+    const prompt = {
+      ...graph,
+      '3': node('CLIPTextEncode', { text: ['30', 0] }),
+      '30': node('ImpactWildcardProcessor', { mode: 'populate', populated_text: 'stale text' }),
+    };
+    const raw = JSON.stringify(prompt).replace('"18446744073709551615"', '18446744073709551615');
+    const [result] = generationGroups({ ...metadata(null), text: { prompt: raw } });
+    expect(result.rows.find((r) => r.label === '随机种子')?.value).toBe('18446744073709551615');
+    expect(result.rows.find((r) => r.label === '正向提示词')?.value).toContain('未识别');
+  });
+  it('支持字符串和封装的 prompt，损坏的原始 JSON 安全降级', () => {
+    expect(generationGroups(metadata(JSON.stringify({ prompt: graph })))).toHaveLength(1);
+    expect(generationGroups({ ...metadata(null), text: { prompt: '{broken' } })).toEqual([]);
+  });
   it('通过连接找到模型和正负提示词，保留种子和零值', () => {
     const [group] = generationGroups(metadata(graph));
     expect(group.loras).toEqual(['style.safetensors']);

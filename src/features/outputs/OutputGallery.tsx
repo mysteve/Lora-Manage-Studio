@@ -1,11 +1,15 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { FolderOpen, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { asset, call, reveal } from '../../lib/api';
-import { Empty, ErrorBox, Loading, Modal } from '../../components/ui';
+import { Empty, ErrorBox, Loading } from '../../components/ui';
 import { bytes } from '../../lib/utils';
 import type { LibraryEntry, Settings } from '../../types/models';
 import { OutputMetadata } from './OutputMetadata';
+import { OutputViewer } from './OutputViewer';
+import { adjacentOutput, OUTPUT_PAGE_SIZE } from './outputNavigation';
+import { outputPageCache } from './outputPageCache';
+import { ZoomableOutput } from './ZoomableOutput';
 
 interface OutputImage {
   path: string;
@@ -49,33 +53,124 @@ export function OutputGallery({
   const [data, setData] = useState<OutputImages | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const cache = useMemo(
+    () => outputPageCache((page: number) => call<OutputImages>('list_output_images', { page })),
+    [settings.comfyRoot, settings.outputDir, revision],
+  );
+  const navigationRequest = useRef(0);
+  const [turning, setTurning] = useState(false);
+  const navigationLocked = useRef(false);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const returnFocus = useRef<string | null>(null);
   const configured = !!(settings.comfyRoot || settings.outputDir);
   useEffect(() => {
     let active = true;
-    setData(null);
+    setData(cache.peek(page) ?? null);
     setError('');
-    setBusy(configured);
+    setBusy(configured && !cache.peek(page));
     if (configured)
-      void call<OutputImages>('list_output_images', { page })
+      void cache
+        .get(page)
         .then((result) => {
           if (active) {
-            if (page > 0 && page * 60 >= result.total) setPage(0);
-            else setData(result);
+            if (page > 0 && page * OUTPUT_PAGE_SIZE >= result.total) {
+              setPage(0);
+            } else {
+              setData(result);
+              onViewChange((previous) => ({
+                ...previous,
+                selected: previous.selected
+                  ? (result.items.find((item) => item.path === previous.selected?.path) ??
+                    result.items[0] ??
+                    null)
+                  : null,
+              }));
+            }
           }
         })
         .catch((e) => {
           if (active) setError(String(e));
         })
         .finally(() => {
-          if (active) setBusy(false);
+          if (active) {
+            setBusy(false);
+            navigationLocked.current = false;
+          }
         });
     return () => {
       active = false;
     };
-  }, [configured, settings.comfyRoot, settings.outputDir, page, revision]);
+  }, [configured, cache, page]);
+  useEffect(() => {
+    return () => {
+      navigationRequest.current++;
+      navigationLocked.current = false;
+    };
+  }, [cache]);
+  const selectedIndex = data?.items.findIndex((item) => item.path === selected?.path) ?? -1;
+  useEffect(() => {
+    if (!selected || !data || selectedIndex < 0) return;
+    const nextPage =
+      selectedIndex >= data.items.length - 5 && (page + 1) * OUTPUT_PAGE_SIZE < data.total
+        ? page + 1
+        : selectedIndex < 5 && page > 0
+          ? page - 1
+          : null;
+    if (nextPage === null) return;
+    let active = true;
+    void cache
+      .get(nextPage)
+      .then((result) => {
+        if (!active) return;
+        const item = nextPage > page ? result.items[0] : result.items.at(-1);
+        if (item) {
+          const image = new Image();
+          image.src = asset(item.path);
+        }
+      })
+      .catch(() => {
+        /* 预取失败留待用户翻页时重试。 */
+      });
+    return () => {
+      active = false;
+    };
+  }, [cache, page, selectedIndex, !!selected, data]);
+  const move = (direction: -1 | 1) => {
+    if (busy || navigationLocked.current || !data) return;
+    const target = adjacentOutput(page, selectedIndex, data.total, direction);
+    if (!target) return;
+    if (target.page === page) setSelected(data.items[target.index]);
+    else {
+      navigationLocked.current = true;
+      const request = ++navigationRequest.current;
+      setTurning(true);
+      setError('');
+      void cache
+        .get(target.page)
+        .then((result) => {
+          if (request !== navigationRequest.current) return;
+          const item = result.items[target.index];
+          if (!item) {
+            notify('输出目录内容已变化，请刷新列表', true);
+            return;
+          }
+          setData(result);
+          onViewChange({ page: target.page, selected: item });
+        })
+        .catch((e) => {
+          if (request === navigationRequest.current) notify(String(e), true);
+        })
+        .finally(() => {
+          if (request === navigationRequest.current) {
+            navigationLocked.current = false;
+            setTurning(false);
+          }
+        });
+    }
+  };
   const perform = (operation: Promise<unknown>) => void operation.catch((e) => notify(String(e), true));
   return (
-    <div className="output-page">
+    <div className="output-page" ref={galleryRef}>
       <header className="page-header">
         <div>
           <h1>输出结果</h1>
@@ -126,7 +221,12 @@ export function OutputGallery({
       ) : (
         <div className="output-grid">
           {data?.items.map((item) => (
-            <button className="output-card" key={item.path} onClick={() => setSelected(item)}>
+            <button
+              className="output-card"
+              key={item.path}
+              data-output-path={item.path}
+              onClick={() => setSelected(item)}
+            >
               <OutputPicture item={item} />
               <strong title={item.name}>{item.name}</strong>
               <small>
@@ -149,19 +249,34 @@ export function OutputGallery({
           </button>
         </div>
       )}
-      <AnimatePresence>
+      <AnimatePresence
+        onExitComplete={() => {
+          if (!returnFocus.current) return;
+          const cards = Array.from(
+            galleryRef.current?.querySelectorAll<HTMLButtonElement>('.output-card') ?? [],
+          );
+          (cards.find((card) => card.dataset.outputPath === returnFocus.current) ?? cards[0])?.focus();
+          returnFocus.current = null;
+        }}
+      >
         {selected && (
-          <Modal title={selected.name} onClose={() => setSelected(null)} wide className="output-preview">
-            <div className="output-detail-layout">
-              <div className="output-detail-image">
-                <OutputPicture key={selected.path} item={selected} />
-                <div className="output-actions">
-                  <button onClick={() => perform(reveal(selected.path))}>
-                    <FolderOpen size={17} />
-                    在文件夹中定位
-                  </button>
-                </div>
-              </div>
+          <OutputViewer
+            name={selected.name}
+            position={selectedIndex < 0 ? 0 : page * OUTPUT_PAGE_SIZE + selectedIndex + 1}
+            total={data?.total ?? 0}
+            busy={busy || turning}
+            canPrevious={!!data && !!adjacentOutput(page, selectedIndex, data.total, -1)}
+            canNext={!!data && !!adjacentOutput(page, selectedIndex, data.total, 1)}
+            onMove={move}
+            onClose={() => {
+              returnFocus.current = selected.path;
+              navigationRequest.current++;
+              navigationLocked.current = false;
+              setTurning(false);
+              setSelected(null);
+            }}
+            onReveal={() => perform(reveal(selected.path))}
+            metadata={
               <OutputMetadata
                 key={selected.path}
                 path={selected.path}
@@ -170,19 +285,27 @@ export function OutputGallery({
                 loraDir={settings.loraDir}
                 onOpenEntry={onOpenEntry}
               />
-            </div>
-          </Modal>
+            }
+          >
+            <ZoomableOutput src={asset(selected.path)} name={selected.name} onMove={move} />
+            {error && <ErrorBox message={error} retry={() => setRevision((value) => value + 1)} />}
+          </OutputViewer>
         )}
       </AnimatePresence>
     </div>
   );
 }
 
-function OutputPicture({ item }: { item: OutputImage }) {
+function OutputPicture({ item, eager = false }: { item: OutputImage; eager?: boolean }) {
   const [failed, setFailed] = useState(false);
   return failed ? (
     <span className="output-image-error">图片无法读取，请刷新后重试</span>
   ) : (
-    <img src={asset(item.path)} alt={item.name} loading="lazy" onError={() => setFailed(true)} />
+    <img
+      src={asset(item.path)}
+      alt={item.name}
+      loading={eager ? 'eager' : 'lazy'}
+      onError={() => setFailed(true)}
+    />
   );
 }

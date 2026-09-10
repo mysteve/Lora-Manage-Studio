@@ -566,18 +566,14 @@ button.card-open:active {
   overflow: hidden;
   background: #1e2225;
   isolation: isolate;
-  aspect-ratio: 4/3;
+  aspect-ratio: 2/3;
   width: 100%;
 }
 .cover-image img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s;
-}
-.model-card:hover .cover-image img {
-  transform: scale(1.03);
+  object-fit: contain;
 }
 .cover-placeholder {
   height: 100%;
@@ -944,7 +940,7 @@ button.card-open:active {
   animation: pulse 1.8s ease-in-out infinite;
 }
 .skeleton-card div {
-  aspect-ratio: 4/3;
+  aspect-ratio: 2/3;
   background: #222629;
 }
 .skeleton-card span {
@@ -987,6 +983,8 @@ button.card-open:active {
   color: var(--muted);
   font-size: 13px;
 }
+.discover-pagination { flex-wrap: wrap; }
+.discover-pagination button { min-width: 38px; }
 .download-summary span + span {
   border-left: 1px solid #3c4146;
   margin-left: 23px;
@@ -1213,7 +1211,7 @@ button.card-open:active {
   min-width: 0;
 }
 .detail-cover {
-  aspect-ratio: 1.12;
+  aspect-ratio: 2/3;
   border-radius: 11px;
   border: 1px solid #33373a;
 }
@@ -1224,7 +1222,7 @@ button.card-open:active {
 }
 .thumbnail-row > button {
   width: calc((100% - 30px) / 4);
-  aspect-ratio: 1.3;
+  aspect-ratio: 2/3;
   min-height: 0;
   padding: 0;
   overflow: hidden;
@@ -2123,7 +2121,7 @@ button.api-key-help {
 .safety-cover > img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .safety-cover-caption {
   position: absolute;
@@ -2511,26 +2509,16 @@ button.brand:hover strong {
 .output-location small { flex-shrink: 0; }
 .output-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; }
 .output-grid .output-card { display: flex; flex-direction: column; align-items: stretch; padding: 10px; gap: 10px; min-width: 0; text-align: left; }
-.output-card img, .output-card .output-image-error { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+.output-card img, .output-card .output-image-error { width: 100%; aspect-ratio: 2/3; object-fit: contain; border-radius: 8px; background: #1e2225; }
 .output-card strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .output-card small { color: var(--muted); font-size: 11px; }
 .output-image-error { display: grid; place-items: center; color: var(--muted); }
 .output-pagination { justify-content: center; margin-top: 24px; }
-.output-preview img { display: block; width: 100%; max-height: 65vh; object-fit: contain; }
-.output-preview .output-actions { margin-top: 16px; justify-content: flex-end; }
 
-.output-preview.modal { width: min(1280px, calc(100vw - 48px)); }
-.output-detail-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); gap: 24px; align-items: start; }
-.output-detail-image { position: sticky; top: 0; min-width: 0; }
 .output-metadata { min-width: 0; }
 .output-metadata .gallery-navigation { flex-wrap: wrap; }
 .output-metadata summary { cursor: pointer; padding: 14px 0; }
 .output-metadata .image-parameters h2 { overflow-wrap: anywhere; }
-@media (max-width: 1050px) {
-  .output-detail-layout { grid-template-columns: minmax(0, 1fr); }
-  .output-detail-image { position: static; }
-  .output-detail-image img { max-height: 45vh; }
-}
 
 .associated-loras { margin: 18px 0; }
 .associated-loras h3 { font-size: 13px; margin: 0 0 12px; }
