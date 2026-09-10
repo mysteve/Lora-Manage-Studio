@@ -143,6 +143,7 @@ export function Modal({
   wide = false,
   portal = true,
   className = '',
+  animation = 'dialog',
 }: {
   title: string;
   children: ReactNode;
@@ -150,10 +151,12 @@ export function Modal({
   wide?: boolean;
   portal?: boolean;
   className?: string;
+  animation?: 'dialog' | 'fade';
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
   const present = useIsPresent();
+  const stationary = reduced || animation === 'fade';
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
@@ -188,7 +191,7 @@ export function Modal({
     document.addEventListener('keydown', key);
     return () => {
       document.removeEventListener('keydown', key);
-      previous?.focus();
+      previous?.focus({ preventScroll: true });
     };
   }, []);
   const dialog = (
@@ -205,9 +208,9 @@ export function Modal({
     >
       <motion.div
         ref={ref}
-        initial={{ y: reduced ? 0 : 12, scale: reduced ? 1 : 0.97 }}
+        initial={{ y: stationary ? 0 : 12, scale: stationary ? 1 : 0.97 }}
         animate={{ y: 0, scale: 1 }}
-        exit={{ y: reduced ? 0 : 6, scale: reduced ? 1 : 0.985 }}
+        exit={{ y: stationary ? 0 : 6, scale: stationary ? 1 : 0.985 }}
         transition={{ duration: reduced ? 0 : 0.2, ease: easeOut }}
         className={`modal ${wide ? 'wide' : ''} ${className}`}
         role="dialog"

@@ -109,7 +109,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `PageTransition` | 主页面、模型详情的进退；传入 `detail: boolean`，由外层 AnimatePresence 管理退出 |
 | `NavIndicator` | 主导航选中背景；共享 `layoutId="main-navigation"`，只在当前选中的主导航项内渲染 |
 | `StateIcon` | 需要在状态变化时形变的图标，支持 `eye`、`eyeOff`、`pause`、`play`、`retry`、`check`、`close`；默认尺寸 18 |
-| `Modal` | 导入、编辑、帮助等弹窗；默认通过 portal 挂载到 body，内置进入退出动效、Escape、Tab 焦点管理和关闭后焦点恢复 |
+| `Modal` | 导入、编辑、帮助等弹窗；默认通过 portal 挂载到 body，内置进入退出动效、Escape、Tab 焦点管理和关闭后焦点恢复；`animation="fade"` 用于全屏看图，只淡入淡出，不缩放或位移；恢复焦点不自动滚动 |
 | 模型数量 | 模型总数与基础模型数量直接显示当前值，进入页面和数量更新时均不播放递增动画；CountUp 源码保留但当前未使用 |
 | `easeOut` | 共用缓动 `[0.22, 1, 0.36, 1]`，优先复用 |
 | `useReducedMotion` | 从 `src/lib/useReducedMotion.ts` 引入，使用 useSyncExternalStore 订阅系统偏好，支持运行期间变化 |

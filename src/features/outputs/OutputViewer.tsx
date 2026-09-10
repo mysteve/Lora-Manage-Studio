@@ -55,7 +55,7 @@ export function OutputViewer({
     return () => document.removeEventListener('keydown', handleKey);
   }, [busy, onMove]);
   return (
-    <Modal title={name} onClose={onClose} className="output-viewer">
+    <Modal title={name} onClose={onClose} className="output-viewer" animation="fade">
       <div ref={ref} className={`output-viewer-body${showInfo ? ' with-info' : ''}`}>
         <div className="output-viewer-stage" aria-busy={busy}>
           {children}

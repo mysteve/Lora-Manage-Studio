@@ -270,7 +270,7 @@ export function OutputGallery({
           const cards = Array.from(
             galleryRef.current?.querySelectorAll<HTMLButtonElement>('.output-card') ?? [],
           );
-          (cards.find((card) => card.dataset.outputPath === returnFocus.current) ?? cards[0])?.focus();
+          (cards.find((card) => card.dataset.outputPath === returnFocus.current) ?? cards[0])?.focus({ preventScroll: true });
           returnFocus.current = null;
         }}
       >
