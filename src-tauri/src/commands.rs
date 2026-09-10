@@ -46,6 +46,7 @@ pub fn save_settings(state: Shared<'_>, mut settings: Settings) -> Result<Settin
         // Keep legacy custom directories until the user explicitly binds a root.
         settings.lora_dir = state.db.settings().lora_dir;
     }
+    settings.output_dir = crate::services::outputs::validate_override(&settings.output_dir)?;
     state.db.put("settings", "main", &settings)?;
     Ok(settings)
 }

@@ -81,6 +81,7 @@ mod tests {
         }))
         .unwrap();
         assert!(settings.comfy_root.is_empty());
+        assert!(settings.output_dir.is_empty());
         assert_eq!(settings.lora_dir, "D:\\old-models");
         assert_eq!(settings.proxy_mode, "manual");
         assert!(!serde_json::to_value(settings)

@@ -1,6 +1,7 @@
 export interface Settings {
   loraDir: string;
   comfyRoot: string;
+  outputDir: string;
   setupDismissed: boolean;
   proxyMode: string;
   proxyUrl: string;
@@ -105,4 +106,4 @@ export interface ScanProgress {
   current: string;
   errors: string[];
 }
-export type Page = 'library' | 'discover' | 'downloads' | 'favorites' | 'recipes' | 'settings';
+export type Page = 'library' | 'discover' | 'downloads' | 'favorites' | 'recipes' | 'settings' | 'outputs';

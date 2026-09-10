@@ -34,6 +34,7 @@ import { Detail } from '../features/models/Detail';
 import { AddLocalModel } from '../features/models/AddLocalModel';
 import { AboutDialog } from '../features/about/AboutDialog';
 import { APP_VERSION } from '../features/about/project';
+import { OutputGallery, type OutputView } from '../features/outputs/OutputGallery';
 import { SettingsPanel } from '../features/settings/SettingsPanel';
 import { WindowControls } from '../components/WindowControls';
 import { BaseModelFilter } from '../features/discover/BaseModelFilter';
@@ -57,6 +58,7 @@ const pageTitles: Record<Page, string> = {
   downloads: '下载中心',
   favorites: '收藏模型',
   recipes: '提示词配方',
+  outputs: '输出结果',
   settings: '设置',
 };
 const subtitles: Record<Page, string> = {
@@ -65,10 +67,12 @@ const subtitles: Record<Page, string> = {
   downloads: '灵感正在抵达，下载完成后自动安装到 ComfyUI。',
   favorites: '把喜欢的风格，留在手边。',
   recipes: '保存每一次恰到好处的表达。',
+  outputs: '查看 ComfyUI 输出的图像。',
   settings: '管理工作空间、网站访问与 AI 接入。',
 };
 const defaultSettings: Settings = {
   loraDir: '',
+  outputDir: '',
   comfyRoot: '',
   setupDismissed: false,
   proxyMode: 'system',
@@ -80,6 +84,7 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
   const [page, setPage] = useState<Page>('library');
+  const [outputView, setOutputView] = useState<OutputView>({ page: 0, selected: null });
   const [settings, setSettings] = useState(defaultSettings);
   const [importOpen, setImportOpen] = useState(false);
   const [addLocalOpen, setAddLocalOpen] = useState(false);
@@ -263,6 +268,7 @@ export default function App() {
     setHasUnsaved(false);
     setSelected(null);
     setPage(next);
+    setOutputView((previous) => ({ ...previous, selected: null }));
     setQuery('');
     if (next === 'discover' && !searched) void doSearch();
     if (next === 'downloads') void perform(loadTasks);
@@ -440,6 +446,11 @@ export default function App() {
             <Heart size={21} />
             收藏模型
           </button>
+          <button className={page === 'outputs' ? 'active' : ''} onClick={() => navigate('outputs')}>
+            {page === 'outputs' && <NavIndicator />}
+            <LayoutGrid size={19} />
+            输出结果
+          </button>
           <button className={page === 'recipes' ? 'active' : ''} onClick={() => navigate('recipes')}>
             {page === 'recipes' && <NavIndicator />}
             <Sparkles size={21} />
@@ -492,6 +503,7 @@ export default function App() {
                 notify={notify}
                 onDirtyChange={setHasUnsaved}
                 onClose={() => setSelected(null)}
+                backLabel={page === 'outputs' ? '返回输出图片' : undefined}
                 onChanged={loadLibrary}
                 onNeedSettings={() => void navigate('settings')}
                 onDownloaded={async () => {
@@ -500,11 +512,24 @@ export default function App() {
                   setPage('downloads');
                 }}
               />
+            ) : page === 'outputs' ? (
+              <OutputGallery
+                settings={settings}
+                library={library}
+                onOpenEntry={openLocal}
+                view={outputView}
+                onViewChange={setOutputView}
+                onSettings={() => void navigate('settings')}
+                notify={notify}
+              />
             ) : page === 'settings' ? (
               <SettingsPanel
                 settings={settings}
                 onClose={() => void navigate('library')}
                 onSaved={async (s) => {
+                  if (s.comfyRoot !== settings.comfyRoot || s.outputDir !== settings.outputDir) {
+                    setOutputView({ page: 0, selected: null });
+                  }
                   setSettings(s);
                   if (s.safeContent !== settings.safeContent) {
                     searchSeq.current += 1;
@@ -1079,5 +1104,7 @@ export default function App() {
       </AnimatePresence>
     </div>
   );
-  return <ContentSafetyContext.Provider value={settings.safeContent}>{content}</ContentSafetyContext.Provider>;
+  return (
+    <ContentSafetyContext.Provider value={settings.safeContent}>{content}</ContentSafetyContext.Provider>
+  );
 }

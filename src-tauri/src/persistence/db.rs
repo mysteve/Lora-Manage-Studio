@@ -151,6 +151,7 @@ mod tests {
         let db = Database::open(&path).unwrap();
         let mut expected = original;
         expected["setupDismissed"] = true.into();
+        expected["outputDir"] = "".into();
         assert_eq!(serde_json::to_value(db.settings()).unwrap(), expected);
     }
     #[test]

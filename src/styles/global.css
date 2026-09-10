@@ -2406,3 +2406,44 @@ button.brand:hover strong {
   line-height: 1.7;
   margin-bottom: 0;
 }
+
+/* ComfyUI 输出图像 */
+.output-page { min-width: 0; }
+.output-page .page-header { flex-wrap: wrap; gap: 16px; }
+.output-actions, .output-pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.output-location { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 24px; color: var(--muted); }
+.output-location span { overflow-wrap: anywhere; min-width: 0; }
+.output-location small { flex-shrink: 0; }
+.output-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 18px; }
+.output-grid .output-card { display: flex; flex-direction: column; align-items: stretch; padding: 10px; gap: 10px; min-width: 0; text-align: left; }
+.output-card img, .output-card .output-image-error { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+.output-card strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.output-card small { color: var(--muted); font-size: 11px; }
+.output-image-error { display: grid; place-items: center; color: var(--muted); }
+.output-pagination { justify-content: center; margin-top: 24px; }
+.output-preview img { display: block; width: 100%; max-height: 65vh; object-fit: contain; }
+.output-preview .output-actions { margin-top: 16px; justify-content: flex-end; }
+
+.output-preview.modal { width: min(1280px, calc(100vw - 48px)); }
+.output-detail-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); gap: 24px; align-items: start; }
+.output-detail-image { position: sticky; top: 0; min-width: 0; }
+.output-metadata { min-width: 0; }
+.output-metadata .gallery-navigation { flex-wrap: wrap; }
+.output-metadata summary { cursor: pointer; padding: 14px 0; }
+.output-metadata .image-parameters h2 { overflow-wrap: anywhere; }
+@media (max-width: 1050px) {
+  .output-detail-layout { grid-template-columns: minmax(0, 1fr); }
+  .output-detail-image { position: static; }
+  .output-detail-image img { max-height: 45vh; }
+}
+
+.associated-loras { margin: 18px 0; }
+.associated-loras h3 { font-size: 13px; margin: 0 0 12px; }
+.associated-lora-group + .associated-lora-group { margin-top: 16px; }
+.associated-lora-source { margin: 0; overflow-wrap: anywhere; font-size: 12px; }
+.associated-lora-card { display: flex; align-items: center; width: 100%; gap: 12px; padding: 10px; text-align: left; margin-top: 8px; }
+.associated-lora-card > .cover-image { width: 48px; height: 60px; flex: 0 0 48px; border-radius: 5px; overflow: hidden; }
+.associated-lora-card > span { display: grid; gap: 5px; min-width: 0; flex: 1; }
+.associated-lora-card strong, .associated-lora-card small { overflow-wrap: anywhere; }
+.associated-lora-card small { color: var(--muted); font-size: 11px; }
+.associated-lora-card > svg { flex-shrink: 0; }

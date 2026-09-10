@@ -1,5 +1,6 @@
 // Development-only visual fixtures. Never enabled in a packaged desktop build.
 import data from './preview-models.json';
+import outputSample from '../assets/safety-cover.png';
 import { parseTriggerWords } from '../lib/utils';
 import type {
   DownloadTask,
@@ -49,6 +50,7 @@ if (new URLSearchParams(location.search).has('safety-preview')) {
 }
 let settings: Settings = {
   loraDir: 'D:\\ComfyUI\\models\\loras',
+  outputDir: '',
   comfyRoot: 'D:\\ComfyUI',
   proxyMode: 'system',
   proxyUrl: '',
@@ -130,6 +132,67 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
     case 'save_settings':
       settings = args.settings;
       return settings;
+    case 'output_image_metadata':
+      if (new URLSearchParams(location.search).get('metadata-preview') === 'empty') {
+        return { width: 1024, height: 1024, text: {}, prompt: null };
+      }
+      if (new URLSearchParams(location.search).get('metadata-preview') === 'error') {
+        throw new Error('开发预览：图片生成信息读取失败');
+      }
+      return {
+        width: 1024,
+        height: 1024,
+        text: { parameters: '开发预览示例，非真实图片生成记录', workflow: '{"nodes": []}' },
+        prompt: {
+          '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: '示例基础模型.safetensors' } },
+          '2': {
+            class_type: 'LoraLoader',
+            inputs: {
+              model: ['1', '0'],
+              lora_name: library[0]?.path.split(/[\\/]/).pop() ?? '示例风格.safetensors',
+              strength_model: '0.8',
+              strength_clip: '1',
+            },
+          },
+          '3': {
+            class_type: 'CLIPTextEncode',
+            inputs: { text: '山间小屋，柔和晨光，远山与云雾，细腻的水彩笔触' },
+          },
+          '4': { class_type: 'CLIPTextEncode', inputs: { text: 'blurry, low quality, watermark' } },
+          '5': {
+            class_type: 'KSampler',
+            inputs: {
+              model: ['2', '0'],
+              positive: ['3', '0'],
+              negative: ['4', '0'],
+              seed: '18446744073709551615',
+              steps: '28',
+              cfg: '7',
+              sampler_name: 'dpmpp_2m',
+              scheduler: 'karras',
+              denoise: '1',
+            },
+          },
+          '6': { class_type: 'VAEDecode', inputs: { samples: ['5', '0'] } },
+          '7': { class_type: 'SaveImage', inputs: { images: ['6', '0'] } },
+        },
+      };
+    case 'list_output_images':
+      return {
+        directory: settings.outputDir || `${settings.comfyRoot}\\output`,
+        exists: true,
+        total: new URLSearchParams(location.search).has('outputs-preview') ? 65 : 0,
+        items: new URLSearchParams(location.search).has('outputs-preview')
+          ? Array.from({ length: 65 }, (_, index) => ({
+              path: `${outputSample}?sample=${index}`,
+              name: `预览示例/图像_${index + 1}.png`,
+              modified: 1789000000000 - index * 60000,
+              size: 1565400,
+            })).slice(Number(args.page) * 60, (Number(args.page) + 1) * 60)
+          : [],
+      };
+    case 'open_output_directory':
+      throw new Error('请在桌面应用中打开真实输出目录');
     case 'list_library':
       return library;
     case 'add_local_model': {

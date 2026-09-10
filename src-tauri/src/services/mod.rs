@@ -3,6 +3,8 @@ pub mod auth;
 pub mod classification_cache;
 pub mod cover_metadata;
 pub mod downloads;
+pub mod output_metadata;
+pub mod outputs;
 pub mod resources;
 pub mod site;
 pub mod storage;

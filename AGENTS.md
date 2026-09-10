@@ -31,6 +31,9 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src/features/discover/` | 网站内容分类、基础模型筛选及相关组件 |
 | `src/features/about/` | 关于弹窗、统一版本号、发布版本比较及组件许可证示例；左上角品牌按钮打开 |
 | `src/features/settings/` | ComfyUI 目录、代理、API 密钥及 AI 接入设置 |
+| `src/features/outputs/` | 输出结果图片列表、分页与放大预览；默认读取 ComfyUI 的 output，可在工作空间设置中自定义查看目录。按记录中的 LoRA 文件路径关联模型库，同名候选全部展示；打开库详情后返回恢复图片和页码 |
+| `src-tauri/src/services/outputs.rs` | 输出目录校验、递归图片扫描及打开目录；仅允许当前页图片通过本地资源协议访问，不跟随符号链接 |
+| `src-tauri/src/services/output_metadata.rs` | 读取输出图片的 PNG 文本和 JPEG/WebP EXIF 生成记录，限制文本大小，保留 64 位种子精度；前端 `generationMetadata.ts` 整理采样节点、提示词和模型信息 |
 | `src/components/ui.tsx` | Modal、CoverImage、SearchInput、Badge、Empty、Loading、ErrorBox |
 | `src/components/Motion.tsx` | PageTransition、NavIndicator、StateIcon 和 easeOut |
 | `src/components/react-bits/` | 按需引入的 React Bits 源码、来源说明和许可证 |

@@ -32,6 +32,7 @@ interface Props {
   notify: (s: string, error?: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
+  backLabel?: string;
   onChanged: () => Promise<void>;
   onNeedSettings: () => void;
   onDownloaded: () => Promise<void>;
@@ -46,6 +47,7 @@ export function Detail({
   onChanged,
   onNeedSettings,
   onDownloaded,
+  backLabel = '返回模型库',
 }: Props) {
   const root = library.find((e) => e.id === selection.entryId);
   const versions = useMemo(
@@ -155,7 +157,7 @@ export function Detail({
   return (
     <section className="detail-page">
       <header className="detail-header">
-        <button className="icon-button back-button" onClick={close} aria-label="返回模型库">
+        <button className="icon-button back-button" onClick={close} aria-label={backLabel} title={backLabel}>
           <ArrowLeft size={20} />
         </button>
         <div>

@@ -137,6 +137,36 @@ export function SettingsPanel({
               选择包含 main.py 的 ComfyUI 根目录，也支持选择便携版外层文件夹。只绑定本地目录，无需启动
               ComfyUI。
             </p>
+            <label className="field">
+              图像输出目录
+              <div className="input-action">
+                <input
+                  disabled={!!busy}
+                  value={draft.outputDir}
+                  onChange={(e) => patch({ outputDir: e.target.value })}
+                  placeholder="留空则使用 ComfyUI 根目录下的 output 文件夹"
+                />
+                <button
+                  disabled={!!busy}
+                  onClick={() =>
+                    void perform('output-folder', async () => {
+                      const path = await chooseDirectory('选择图像输出目录');
+                      if (path) patch({ outputDir: path });
+                    })
+                  }
+                >
+                  <FolderOpen size={17} />
+                  浏览
+                </button>
+                <button disabled={!!busy || !draft.outputDir} onClick={() => patch({ outputDir: '' })}>
+                  恢复默认
+                </button>
+              </div>
+            </label>
+            <p className="field-help">
+              输出结果页面读取此目录及其子目录。此设置只修改查看位置，ComfyUI 的实际输出位置需在 ComfyUI
+              中配置。
+            </p>
             <div className="settings-storage settings-storage-inline">
               <strong>本地资料存储位置</strong>
               <p>{location || '应用数据目录'}</p>

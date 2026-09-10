@@ -7,6 +7,8 @@ pub struct Settings {
     #[serde(default)]
     pub comfy_root: String,
     #[serde(default)]
+    pub output_dir: String,
+    #[serde(default)]
     pub setup_dismissed: bool,
     pub proxy_mode: String,
     pub proxy_url: String,
@@ -17,6 +19,7 @@ impl Default for Settings {
         Self {
             lora_dir: String::new(),
             comfy_root: String::new(),
+            output_dir: String::new(),
             setup_dismissed: false,
             proxy_mode: "system".into(),
             proxy_url: String::new(),

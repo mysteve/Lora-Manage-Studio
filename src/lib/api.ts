@@ -18,9 +18,9 @@ export async function copy(text: string) {
   if (desktop) await writeText(text);
   else await navigator.clipboard.writeText(text);
 }
-export async function chooseDirectory() {
+export async function chooseDirectory(title = '选择 ComfyUI 根目录（或便携版文件夹）') {
   return desktop
-    ? await open({ directory: true, multiple: false, title: '选择 ComfyUI 根目录（或便携版文件夹）' })
+    ? await open({ directory: true, multiple: false, title })
     : null;
 }
 export async function chooseImage(title = '选择模型封面') {
