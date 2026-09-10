@@ -22,4 +22,13 @@ describe('看图滚轮', () => {
     expect(wheel(10, 700)).toBeNull();
     expect(wheel(30, 1000)).toBeNull();
   });
+  it('连续滚动每50毫秒响应，反向滚动及时返回且不积压补跳', () => {
+    const wheel = wheelNavigation();
+    expect(wheel(120, 0)).toBe(1);
+    expect(wheel(120, 49)).toBeNull();
+    expect(wheel(120, 50)).toBe(1);
+    expect(wheel(-120, 60)).toBe(-1);
+    expect(wheel(-120, 109)).toBeNull();
+    expect(wheel(-120, 110)).toBe(-1);
+  });
 });

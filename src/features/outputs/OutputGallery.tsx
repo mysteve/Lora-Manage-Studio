@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { FolderOpen, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { asset, call, reveal } from '../../lib/api';
@@ -10,6 +10,7 @@ import { OutputViewer } from './OutputViewer';
 import { adjacentOutput } from './outputNavigation';
 import { outputPageCache } from './outputPageCache';
 import { ZoomableOutput } from './ZoomableOutput';
+import { outputImagePreload } from './outputImagePreload';
 
 interface OutputImage {
   path: string;
@@ -50,8 +51,8 @@ export function OutputGallery({
 }) {
   const { page, selected } = view;
   const setPage = (page: number) => onViewChange((previous) => ({ ...previous, page, cursors: cache.history() }));
-  const setSelected = (selected: OutputImage | null) =>
-    onViewChange((previous) => ({ ...previous, selected }));
+  const setSelected = useCallback((selected: OutputImage | null) =>
+    onViewChange((previous) => ({ ...previous, selected })), [onViewChange]);
   const [revision, setRevision] = useState(0);
   const [data, setData] = useState<OutputImages | null>(null);
   const [busy, setBusy] = useState(true);
@@ -60,6 +61,8 @@ export function OutputGallery({
     () => outputPageCache((cursor) => call<OutputImages>('list_output_images', { cursor }), revision === 0 ? view.cursors : [null]),
     [settings.comfyRoot, settings.outputDir, revision],
   );
+  const imagePreload = useMemo(() => outputImagePreload(), [cache]);
+  useEffect(() => () => imagePreload.clear(), [imagePreload]);
   const navigationRequest = useRef(0);
   const [turning, setTurning] = useState(false);
   const navigationLocked = useRef(false);
@@ -107,6 +110,17 @@ export function OutputGallery({
   }, [cache]);
   const selectedIndex = data?.items.findIndex((item) => item.path === selected?.path) ?? -1;
   useEffect(() => {
+    if (!selected || !data || selectedIndex < 0) {
+      imagePreload.clear();
+      return;
+    }
+    // Only retain a few full-size decoded images, never the whole output page.
+    for (const offset of [-2, 2, -1, 1]) {
+      const item = data.items[selectedIndex + offset];
+      if (item) imagePreload.preload(asset(item.path));
+    }
+  }, [data, selectedIndex, !!selected, imagePreload]);
+  useEffect(() => {
     if (!selected || !data || selectedIndex < 0) return;
     const nextPage =
       selectedIndex >= data.items.length - 5 && !!data.nextCursor
@@ -122,8 +136,7 @@ export function OutputGallery({
         if (!active) return;
         const item = nextPage > page ? result.items[0] : result.items.at(-1);
         if (item) {
-          const image = new Image();
-          image.src = asset(item.path);
+          imagePreload.preload(asset(item.path));
         }
       })
       .catch(() => {
@@ -132,7 +145,7 @@ export function OutputGallery({
     return () => {
       active = false;
     };
-  }, [cache, page, selectedIndex, !!selected, data]);
+  }, [cache, page, selectedIndex, !!selected, data, imagePreload]);
   const move = (direction: -1 | 1) => {
     if (busy || navigationLocked.current || !data) return;
     const target = adjacentOutput(page, selectedIndex, data.items.length, !!data.nextCursor, direction);
@@ -166,6 +179,24 @@ export function OutputGallery({
         });
     }
   };
+  const cards = useMemo(() => (
+        <div className="output-grid">
+          {data?.items.map((item) => (
+            <button
+              className="output-card"
+              key={item.path}
+              data-output-path={item.path}
+              onClick={() => setSelected(item)}
+            >
+              <OutputPicture item={item} />
+              <strong title={item.name}>{item.name}</strong>
+              <small>
+                {item.modified ? new Date(item.modified).toLocaleString() : '时间未知'} · {bytes(item.size)}
+              </small>
+            </button>
+          ))}
+        </div>
+  ), [data?.items, setSelected]);
   const refresh = () => {
     onViewChange({ page: 0, selected: null, cursors: [null] });
     setRevision((value) => value + 1);
@@ -218,22 +249,7 @@ export function OutputGallery({
           description="支持 PNG、JPG、JPEG 和 WebP。生成图片后点击刷新，或在设置中指定实际输出目录。"
         />
       ) : (
-        <div className="output-grid">
-          {data?.items.map((item) => (
-            <button
-              className="output-card"
-              key={item.path}
-              data-output-path={item.path}
-              onClick={() => setSelected(item)}
-            >
-              <OutputPicture item={item} />
-              <strong title={item.name}>{item.name}</strong>
-              <small>
-                {item.modified ? new Date(item.modified).toLocaleString() : '时间未知'} · {bytes(item.size)}
-              </small>
-            </button>
-          ))}
-        </div>
+        cards
       )}
       {data && (page > 0 || data.nextCursor) && (
         <div className="output-pagination">

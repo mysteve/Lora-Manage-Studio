@@ -11,15 +11,17 @@ export function wheelNavigation() {
   let sum = 0;
   let lastEvent = -Infinity;
   let lastMove = -Infinity;
+  let lastDirection = 0;
   return (delta: number, now: number): -1 | 1 | null => {
     if (now - lastEvent > 200 || Math.sign(delta) !== Math.sign(sum)) sum = 0;
     lastEvent = now;
-    if (now - lastMove < 280) return null;
+    if (now - lastMove < 50 && Math.sign(delta) === lastDirection) return null;
     sum += delta;
     if (Math.abs(sum) < 40) return null;
     const direction = sum > 0 ? 1 : -1;
     sum = 0;
     lastMove = now;
+    lastDirection = direction;
     return direction;
   };
 }
