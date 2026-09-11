@@ -206,7 +206,7 @@ export function OutputGallery({
     <div className="output-page" ref={galleryRef}>
       <header className="page-header">
         <div>
-          <h1>输出结果</h1>
+          <h1>我的图像</h1>
           <p>浏览 ComfyUI 已生成的图片，点击查看大图、模型、提示词和生成参数。</p>
         </div>
         <div className="output-actions">
@@ -240,7 +240,7 @@ export function OutputGallery({
           action={<button onClick={onSettings}>前往设置</button>}
         />
       ) : busy ? (
-        <Loading text="正在读取输出结果…" />
+        <Loading text="正在读取图像…" />
       ) : error ? (
         <ErrorBox message={error} retry={refresh} />
       ) : data && !data.items.length ? (

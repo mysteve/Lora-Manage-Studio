@@ -164,7 +164,7 @@ export function SettingsPanel({
               </div>
             </label>
             <p className="field-help">
-              输出结果页面读取此目录及其子目录。此设置只修改查看位置，ComfyUI 的实际输出位置需在 ComfyUI
+              我的图像页面读取此目录及其子目录。此设置只修改查看位置，ComfyUI 的实际输出位置需在 ComfyUI
               中配置。
             </p>
             <div className="settings-storage settings-storage-inline">

@@ -57,16 +57,14 @@ const pageTitles: Record<Page, string> = {
   library: '我的模型',
   discover: '在线发现',
   downloads: '下载中心',
-  favorites: '收藏模型',
   recipes: '词句组合',
-  outputs: '输出结果',
+  outputs: '我的图像',
   settings: '设置',
 };
 const subtitles: Record<Page, string> = {
   library: '为每一次创作，找到恰好的 LoRA。',
   discover: '探索新的风格，让灵感落地。',
   downloads: '灵感正在抵达，下载完成后自动安装到 ComfyUI。',
-  favorites: '把喜欢的风格，留在手边。',
   recipes: '自由编写提示词片段，按顺序组合使用。',
   outputs: '查看 ComfyUI 输出的图像。',
   settings: '管理工作空间、网站访问与 AI 接入。',
@@ -340,7 +338,6 @@ export default function App() {
           (e) =>
             matchesEntry(e, query) &&
             (!base || e.baseModel === base) &&
-            (page !== 'favorites' || e.favorite) &&
             (!fileStatus || (fileStatus === 'missing' ? e.missing : !e.missing)),
         )
         .sort((a, b) =>
@@ -350,7 +347,7 @@ export default function App() {
               ? b.size - a.size
               : b.createdAt - a.createdAt,
         ),
-    [library, query, base, page, fileStatus, localSort],
+    [library, query, base, fileStatus, localSort],
   );
   const bases = useMemo(
     () => [...new Set(library.map((e) => e.baseModel).filter(Boolean))].sort(),
@@ -441,15 +438,10 @@ export default function App() {
           </button>
           <div className="nav-divider" />
           <span className="nav-label">工作空间</span>
-          <button className={page === 'favorites' ? 'active' : ''} onClick={() => navigate('favorites')}>
-            {page === 'favorites' && <NavIndicator />}
-            <Heart size={21} />
-            收藏模型
-          </button>
           <button className={page === 'outputs' ? 'active' : ''} onClick={() => navigate('outputs')}>
             {page === 'outputs' && <NavIndicator />}
             <LayoutGrid size={19} />
-            输出结果
+            我的图像
           </button>
           <button className={page === 'recipes' ? 'active' : ''} onClick={() => navigate('recipes')}>
             {page === 'recipes' && <NavIndicator />}
@@ -503,7 +495,7 @@ export default function App() {
                 notify={notify}
                 onDirtyChange={setHasUnsaved}
                 onClose={() => setSelected(null)}
-                backLabel={page === 'outputs' ? '返回输出图片' : undefined}
+                backLabel={page === 'outputs' ? '返回我的图像' : undefined}
                 onChanged={loadLibrary}
                 onNeedSettings={() => void navigate('settings')}
                 onDownloaded={async () => {
@@ -554,7 +546,7 @@ export default function App() {
                         添加本地 LoRA
                       </button>
                     )}
-                    {(page === 'library' || page === 'favorites') && (
+                    {page === 'library' && (
                       <>
                         <button onClick={() => setImportOpen(true)}>
                           <Link size={17} />
@@ -610,7 +602,7 @@ export default function App() {
                     ))}
                   </details>
                 )}
-                {(page === 'library' || page === 'favorites') && (
+                {page === 'library' && (
                   <>
                     <div className="toolbar">
                       <SearchInput value={query} onChange={setQuery} />
