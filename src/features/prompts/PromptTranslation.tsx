@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Loader2 } from 'lucide-react';
 import { call } from '../../lib/api';
 import type { PromptTerm } from './terms';
@@ -9,7 +9,7 @@ export interface AiTranslationStatus {
   reason: string;
   model: string;
 }
-export function PromptTranslation({
+export const PromptTranslation = memo(function PromptTranslation({
   value,
   terms,
   ai,
@@ -33,7 +33,7 @@ export function PromptTranslation({
       generation.current++;
     };
   }, [value]);
-  const parts = translateFromLibrary(value, terms);
+  const parts = useMemo(() => translateFromLibrary(value, terms), [value, terms]);
   const translated = result?.source === value ? result.text : '';
   if (!value.trim()) return null;
   const translate = async () => {
@@ -92,4 +92,4 @@ export function PromptTranslation({
       )}
     </div>
   );
-}
+});

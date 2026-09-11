@@ -39,7 +39,9 @@
       "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
       "../docs/INSTALL.md": "INSTALL.md",
       "../src/features/about/licenses/": "licenses/",
-      "../src/components/react-bits/LICENSE.md": "licenses/React-Bits.md"
+      "../src/components/react-bits/LICENSE.md": "licenses/React-Bits.md",
+      "../src/features/prompts/data/tagcomplete-LICENSE.txt": "licenses/Tagcomplete.txt",
+      "../src/features/prompts/data/prompt-all-in-one-LICENSE.txt": "licenses/Prompt-All-in-One.txt"
     },
     "icon": ["icons/icon.ico", "icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png"],
     "windows": {

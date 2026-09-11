@@ -5,6 +5,7 @@ import { ask, call, copy } from '../../lib/api';
 import { composePrompt, moveSegment, type PromptDraft, type PromptSegment } from './composer';
 import './prompts.css';
 import { PromptPresets } from './PromptPresets';
+import { usePromptSearch } from './usePromptSearch';
 import { PromptInput } from './PromptInput';
 import { PromptLibrary } from './PromptLibrary';
 import { usePromptTerms } from './usePromptTerms';
@@ -79,6 +80,7 @@ export function PromptComposer({
   const [kind, setKind] = useState<PromptSegment['kind']>('positive');
   const [libraryOpen, setLibraryOpen] = useState(false);
   const library = usePromptTerms();
+  const search = usePromptSearch(library.terms);
   const [ai, setAi] = useState<AiTranslationStatus | null>(null);
   useEffect(() => {
     let alive = true;
@@ -262,7 +264,7 @@ export function PromptComposer({
                     id={segment.id}
                     label={`片段 ${index + 1} 内容`}
                     kind={kind}
-                    terms={library.terms}
+                    search={search}
                     value={segment.text}
                     onChange={(text) => update(segment.id, { text })}
                   />

@@ -7,10 +7,29 @@ export interface TranslatedPart {
 }
 
 // 先按完整词句查词库，再递归处理括号和权重，避免把半个英文单词当成词条。
+const dictionaries = new WeakMap<PromptTerm[], Map<string, string>>();
+export async function prepareTranslationDictionary(terms: PromptTerm[]) {
+  if (dictionaries.has(terms)) return;
+  const dictionary = new Map<string, string>();
+  for (let offset = 0; offset < terms.length; offset += 2000) {
+    for (const term of terms.slice(offset, offset + 2000)) {
+      if (term.enabled && term.translation) dictionary.set(normalizeTerm(term.text), term.translation);
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  dictionaries.set(terms, dictionary);
+}
 export function translateFromLibrary(value: string, terms: PromptTerm[]): TranslatedPart[] {
-  const dictionary = new Map(
-    terms.filter((term) => term.enabled).map((term) => [normalizeTerm(term.text), term.translation]),
-  );
+  if (!value.trim()) return [];
+  let dictionary = dictionaries.get(terms);
+  if (!dictionary) {
+    dictionary = new Map(
+      terms
+        .filter((term) => term.enabled && term.translation)
+        .map((term) => [normalizeTerm(term.text), term.translation]),
+    );
+    dictionaries.set(terms, dictionary);
+  }
   const translate = (source: string, nesting = 0): TranslatedPart[] => {
     const trimmed = source.trim();
     if (!trimmed) return [];

@@ -198,3 +198,10 @@ import { Modal } from '../components/ui';
 `src/features/prompts/terms.ts` 维护内置双语词库、搜索与光标位置补全逻辑；`PromptInput` 提供中英文及别名匹配、方向键选择和 Enter/Tab 补全，中文输入法组合期间不处理选择快捷键。补全保留当前词句之外的内容及权重语法，不搜索 LoRA 表达式内部。`PromptLibrary` 通过编辑区底部的词库管理入口维护英文词句、中文翻译、分类、别名和正负向范围，支持新增、编辑、启停和删除。词库通过版本化 localStorage 单独持久化，preview 使用独立键；写入前读取最新数据，读取失败禁止覆盖。
 
 左侧提示词片段下方通过 `PromptTranslation` 显示中文，`translation.ts` 按词库完整词句匹配并保留权重；未匹配部分保留原文并标记。AI 翻译仅由用户点击触发，使用已保存模型、服务地址及 Windows 凭据，支持 DeepSeek 和兼容 Chat Completions 的自定义服务；自定义服务允许无密钥的本地模型。`get_ai_translation_status` 返回接入状态，`translate_prompt` 只接收当前片段文本。输入修改或组件卸载后忽略旧请求结果，译文不修改片段原文或组合结果。浏览器 preview 不发送真实 AI 请求。
+### 扩展词库加载与个人修改
+
+`src/features/prompts/data/external-terms.json` 保存外部合并词库；`vocabulary.ts` 在进入词句组合时通过动态导入加载，不在应用启动时解析整个词库，也不通过外网获取。`scripts/update-prompt-vocabulary.py` 可重新获取来源 CSV、合并并生成来源哈希和许可文件；`sources.json` 记录实际来源，不得把来源译文宣称为人工校对。
+
+词库仍使用原有 localStorage 键，数据结构升级为 version 2，只保存个人新增、修改和删除 ID；读取 version 1 时保留原有词条修改、停用与删除，同时加入新扩展词条，首次成功保存后写入新版。词库加载或读取失败时禁止写入。无译文的外部条目允许空翻译，可通过维护界面补充。搜索与中文对照按词库数组缓存索引，修改后自动重建；词库管理每页最多渲染 50 条。许可文本同时加入 Tauri 安装包资源。
+
+片段输入的模糊补全通过 `promptSearch.worker.ts` 后台线程执行，`PromptSearchClient` 在页面内共享一个 Worker，按 1000 条分批传输词库；离开页面或替换词库时终止旧 Worker。`useTermSuggestions` 使用 80ms 防抖，关闭候选、失焦、中文输入法组合期间不搜索，取消的请求和旧词库结果不得显示。不得在 PromptInput 渲染过程中同步遍历完整词库。中文词库索引在发布新词库状态前分批准备，PromptTranslation 按片段内容缓存结果，未修改的片段避免重新渲染。

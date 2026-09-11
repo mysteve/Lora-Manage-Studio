@@ -1,4 +1,6 @@
 export interface PromptTerm {
+  source?: string;
+  count?: number;
   id: string;
   text: string;
   translation: string;
@@ -160,22 +162,18 @@ export const termStorageKey = 'lora-studio.prompt-terms.v1';
 export const normalizeTerm = (text: string) =>
   text.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 
-export function readTerms(storage: Pick<Storage, 'getItem'>, key = termStorageKey): PromptTerm[] {
-  const raw = storage.getItem(key);
-  if (raw === null) return builtInTerms.map((term) => ({ ...term }));
-  const data = JSON.parse(raw);
-  if (!data || data.version !== 1 || !Array.isArray(data.terms)) throw new Error('词库数据格式不正确');
+function validateTerms(terms: unknown): asserts terms is PromptTerm[] {
+  if (!Array.isArray(terms)) throw new Error('词库条目格式不正确');
   const ids = new Set<string>();
   const texts = new Set<string>();
-  for (const term of data.terms) {
+  for (const term of terms) {
     if (
       !term ||
       typeof term.id !== 'string' ||
       !term.id ||
       ids.has(term.id) ||
-      !['text', 'translation', 'category'].every(
-        (field) => typeof term[field] === 'string' && term[field].trim(),
-      ) ||
+      !['text', 'category'].every((field) => typeof term[field] === 'string' && term[field].trim()) ||
+      typeof term.translation !== 'string' ||
       typeof term.aliases !== 'string' ||
       typeof term.enabled !== 'boolean' ||
       !['positive', 'negative', 'both'].includes(term.kind) ||
@@ -185,28 +183,85 @@ export function readTerms(storage: Pick<Storage, 'getItem'>, key = termStorageKe
     ids.add(term.id);
     texts.add(normalizeTerm(term.text));
   }
-  return data.terms;
-}
-export function writeTerms(storage: Pick<Storage, 'setItem'>, terms: PromptTerm[], key = termStorageKey) {
-  storage.setItem(key, JSON.stringify({ version: 1, terms }));
 }
 
-export function searchTerms(terms: PromptTerm[], query: string, kind?: 'positive' | 'negative') {
+export function readTerms(
+  storage: Pick<Storage, 'getItem'>,
+  key = termStorageKey,
+  defaults = builtInTerms,
+): PromptTerm[] {
+  const raw = storage.getItem(key);
+  if (raw === null) return defaults;
+  const data = JSON.parse(raw);
+  if (!data || ![1, 2].includes(data.version)) throw new Error('词库数据格式不正确');
+  validateTerms(data.terms);
+  let deleted: Set<string>;
+  if (data.version === 1) {
+    // 旧版保存完整词库，仅对原有 81 条推导删除记录，新扩展词库自动加入。
+    const savedIds = new Set(data.terms.map((term: PromptTerm) => term.id));
+    deleted = new Set(builtInTerms.filter((term) => !savedIds.has(term.id)).map((term) => term.id));
+  } else {
+    if (!Array.isArray(data.deleted) || !data.deleted.every((id: unknown) => typeof id === 'string'))
+      throw new Error('词库删除记录格式不正确');
+    deleted = new Set(data.deleted);
+  }
+  const overrides = new Set(data.terms.map((term: PromptTerm) => term.id));
+  const merged = new Map(
+    defaults
+      .filter((term) => !deleted.has(term.id) && !overrides.has(term.id))
+      .map((term) => [normalizeTerm(term.text), term]),
+  );
+  for (const term of data.terms) merged.set(normalizeTerm(term.text), term);
+  return [...merged.values()];
+}
+
+export function writeTerms(
+  storage: Pick<Storage, 'setItem'>,
+  terms: PromptTerm[],
+  key = termStorageKey,
+  defaults = builtInTerms,
+) {
+  const original = new Map(defaults.map((term) => [term.id, term]));
+  const present = new Set(terms.map((term) => term.id));
+  const fields = ['text', 'translation', 'category', 'aliases', 'kind', 'enabled'] as const;
+  const changed = terms.filter((term) => {
+    const base = original.get(term.id);
+    return !base || fields.some((field) => term[field] !== base[field]);
+  });
+  const deleted = defaults.filter((term) => !present.has(term.id)).map((term) => term.id);
+  storage.setItem(key, JSON.stringify({ version: 2, terms: changed, deleted }));
+}
+
+const searchIndexes = new WeakMap<PromptTerm[], { term: PromptTerm; fields: string[] }[]>();
+export function searchTerms(
+  terms: PromptTerm[],
+  query: string,
+  kind?: 'positive' | 'negative',
+  limit = Infinity,
+) {
+  let index = searchIndexes.get(terms);
+  if (!index) {
+    index = terms.map((term) => ({
+      term,
+      fields: [term.text, term.translation, term.aliases].map(normalizeTerm),
+    }));
+    searchIndexes.set(terms, index);
+  }
   const needle = normalizeTerm(query);
-  const score = (term: PromptTerm) => {
-    const fields = [term.text, term.translation, term.aliases].map(normalizeTerm);
-    if (!needle) return 1;
-    if (fields.some((field) => field === needle)) return 4;
-    if (fields.some((field) => field.startsWith(needle))) return 3;
-    if (fields.some((field) => field.includes(needle))) return 2;
-    return needle.split(' ').every((word) => fields.some((field) => field.includes(word))) ? 1 : 0;
-  };
-  return terms
-    .filter((term) => !kind || (term.enabled && (term.kind === kind || term.kind === 'both')))
-    .map((term) => ({ term, score: score(term) }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map((item) => item.term);
+  const words = needle.split(' ');
+  const buckets: PromptTerm[][] = [[], [], [], [], []];
+  for (const { term, fields } of index) {
+    if (kind && (!term.enabled || (term.kind !== kind && term.kind !== 'both'))) continue;
+    let score = 0;
+    if (!needle) score = 1;
+    else if (fields.some((field) => field === needle)) score = 4;
+    else if (fields.some((field) => field.startsWith(needle))) score = 3;
+    else if (fields.some((field) => field.includes(needle))) score = 2;
+    else if (words.length > 1 && words.every((word) => fields.some((field) => field.includes(word))))
+      score = 1;
+    if (score && buckets[score].length < limit) buckets[score].push(term);
+  }
+  return [...buckets[4], ...buckets[3], ...buckets[2], ...buckets[1]].slice(0, limit);
 }
 
 // Only replace the token around the caret; preserve separators, weights and LoRA expressions.

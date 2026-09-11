@@ -1,0 +1,31 @@
+{
+  "retrieved": "2026-09-11",
+  "sources": [
+    {
+      "name": "danbooru",
+      "url": "https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/danbooru.csv",
+      "sha256": "f936684fa0b041e9a55d35f2052588e28d95eef8672be6829241f8b1a7214732",
+      "rows": 140782
+    },
+    {
+      "name": "e621",
+      "url": "https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/e621.csv",
+      "sha256": "b6b36579f1843d04c5c81fb054828806aadce494dc417c80d492e4b3ebf73e46",
+      "rows": 101668
+    },
+    {
+      "name": "quality",
+      "url": "https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/extra-quality-tags.csv",
+      "sha256": "dd1e3246f9a0548615bb47530369ace101788a0dd665e54eaa20736a91197e61",
+      "rows": 6
+    },
+    {
+      "name": "chinese",
+      "url": "https://raw.githubusercontent.com/Physton/sd-webui-prompt-all-in-one-assets/main/tags/danbooru.zh_CN.csv",
+      "sha256": "79c24445ea5cc85d94c0664d13a411fc292b0637f75b1e8e45e5dcffaf5e55d5",
+      "rows": 99983
+    }
+  ],
+  "uniqueTerms": 232614,
+  "translatedTerms": 99976
+}

@@ -1,19 +1,21 @@
 import { useId, useRef, useState } from 'react';
-import { completeTerm, promptToken, searchTerms, type PromptTerm } from './terms';
+import { useTermSuggestions } from './usePromptSearch';
+import type { PromptSearchClient } from './promptSearchClient';
+import { completeTerm, promptToken, type PromptTerm } from './terms';
 
 export function PromptInput({
   id,
   label,
   value,
   kind,
-  terms,
+  search,
   onChange,
 }: {
   id: string;
   label: string;
   value: string;
   kind: 'positive' | 'negative';
-  terms: PromptTerm[];
+  search: PromptSearchClient | null;
   onChange: (text: string) => void;
 }) {
   const input = useRef<HTMLTextAreaElement>(null);
@@ -23,7 +25,7 @@ export function PromptInput({
   const [composing, setComposing] = useState(false);
   const [active, setActive] = useState(0);
   const query = promptToken(value, caret).query;
-  const matches = query ? searchTerms(terms, query, kind).slice(0, 8) : [];
+  const matches = useTermSuggestions(search, open && !composing ? query : '', kind);
   const shown = open && !composing && matches.length > 0;
   const selected = Math.min(active, matches.length - 1);
   const select = (term: PromptTerm) => {
