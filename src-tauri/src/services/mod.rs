@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod ai_translation;
 pub mod auth;
 pub mod classification_cache;
 pub mod cover_metadata;

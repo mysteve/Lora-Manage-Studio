@@ -21,7 +21,8 @@ export function composePrompt(draft: PromptDraft) {
   const join = (kind: PromptSegment['kind']) =>
     draft.segments
       .filter((segment) => segment.enabled && segment.kind === kind)
-      .map((segment) => segment.text.trim())
+      // 统一片段边界的分隔符，保留片段内部的标点和权重语法。
+      .map((segment) => segment.text.replace(/^[\s,，]+|[\s,，]+$/g, ''))
       .filter(Boolean)
       .join(', ');
   return { positive: join('positive'), negative: join('negative') };

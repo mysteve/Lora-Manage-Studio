@@ -7,6 +7,29 @@ const segment = (text: string, kind: PromptSegment['kind'] = 'positive', enabled
   enabled,
 });
 describe('prompt composition', () => {
+  it('joins autocomplete fragments without duplicate commas and leaves drafts unchanged', () => {
+    const segments = [segment('masterpiece, '), segment('watercolor painting, '), segment('best quality, ')];
+    expect(composePrompt({ segments }).positive).toBe('masterpiece, watercolor painting, best quality');
+    expect(segments.map((item) => item.text)).toEqual([
+      'masterpiece, ',
+      'watercolor painting, ',
+      'best quality, ',
+    ]);
+  });
+  it('normalizes boundary commas in both groups without changing internal expressions', () => {
+    expect(
+      composePrompt({
+        segments: [
+          segment(' ,， '),
+          segment(', (red, blue:1.2)\nBREAK landscape， '),
+          segment('， portrait,'),
+          segment('blurry, ', 'negative'),
+          segment(', low quality，', 'negative'),
+          segment('hidden, ', 'negative', false),
+        ],
+      }),
+    ).toEqual({ positive: '(red, blue:1.2)\nBREAK landscape, portrait', negative: 'blurry, low quality' });
+  });
   it('moves segments before and after a target without changing the other group order', () => {
     const segments = [
       segment('a'),

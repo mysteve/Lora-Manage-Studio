@@ -48,7 +48,7 @@ LoRA Studio 是面向 Windows 的本地 LoRA 管理工具，供 ComfyUI 用户�
 | `src-tauri/src/types.rs` | Rust 数据结构与序列化约定 |
 | `src-tauri/src/services/updates.rs` | 通过 GitHub 正式发布 API 检查更新，沿用代理配置，不自动安装 |
 | `src-tauri/src/services/search_pagination.rs` | 聚合 C 站模型搜索游标：上游每批 100 条，界面每页最多 24 个；空批次继续读取，单次最多 8 批、总超时 30 秒；版本化游标记录上游位置和批内偏移，保留溢出结果，不能按空页或少于 limit 判断结束 |
-| `src-tauri/src/services/ai.rs` | AI 配置、按服务地址隔离的凭据及模型列表查询；暂不执行翻译 |
+| `src-tauri/src/services/ai.rs` | AI 配置、按服务地址隔离的凭据及模型列表查询；`ai_translation.rs` 负责按已保存配置翻译提示词 |
 | `src-tauri/src/services/cover_metadata.rs` | 后台补齐旧模型及下载记录的图片分级，仅合并预览资料，保留个人编辑和下载状态 |
 | `src-tauri/src/services/` | 网站访问、授权、下载、本地模型、目录绑定和预览图处理 |
 | `src-tauri/src/persistence/` | SQLite 持久化及任务恢复 |
@@ -192,3 +192,9 @@ import { Modal } from '../components/ui';
 `src/features/debug/` 为开发构建按需加载的资源面板，入口位于左上角品牌下方。`services/resources.rs` 使用 Windows 进程 API 采样主进程及子进程，仅在 Windows debug_assertions 构建中编译采样实现。发布版必须拒绝调用采样命令。保持 2 秒非重叠采样、关闭及页面隐藏时清理定时器，不向浏览器预览填入虚假资源数据。CPU 按进程 ID 与创建时间匹配两次采样，内存单位为 MiB，统计口径说明保留在 README 和验收文档中，不在监测面板底部显示。
 
 词句组合使用 HTML5 拖动排序，Windows 窗口配置保持 dragDropEnabled 为 false，避免原生文件拖放接管页面拖动；当前没有原生文件拖入功能。
+
+### 提示词词库
+
+`src/features/prompts/terms.ts` 维护内置双语词库、搜索与光标位置补全逻辑；`PromptInput` 提供中英文及别名匹配、方向键选择和 Enter/Tab 补全，中文输入法组合期间不处理选择快捷键。补全保留当前词句之外的内容及权重语法，不搜索 LoRA 表达式内部。`PromptLibrary` 通过编辑区底部的词库管理入口维护英文词句、中文翻译、分类、别名和正负向范围，支持新增、编辑、启停和删除。词库通过版本化 localStorage 单独持久化，preview 使用独立键；写入前读取最新数据，读取失败禁止覆盖。
+
+左侧提示词片段下方通过 `PromptTranslation` 显示中文，`translation.ts` 按词库完整词句匹配并保留权重；未匹配部分保留原文并标记。AI 翻译仅由用户点击触发，使用已保存模型、服务地址及 Windows 凭据，支持 DeepSeek 和兼容 Chat Completions 的自定义服务；自定义服务允许无密钥的本地模型。`get_ai_translation_status` 返回接入状态，`translate_prompt` 只接收当前片段文本。输入修改或组件卸载后忽略旧请求结果，译文不修改片段原文或组合结果。浏览器 preview 不发送真实 AI 请求。

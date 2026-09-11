@@ -114,6 +114,10 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
       throw new Error('请在桌面应用中检查更新，或打开 GitHub 发布页面');
     case 'get_ai_config':
       return aiConfig;
+    case 'get_ai_translation_status':
+      return { available: false, model: '', reason: '请在桌面应用中接入 AI 翻译' };
+    case 'translate_prompt':
+      throw new Error('浏览器预览不请求真实 AI 服务，请在桌面应用中使用 AI 翻译');
     case 'save_ai_config':
       aiConfig = { ...args.config };
       return aiConfig;

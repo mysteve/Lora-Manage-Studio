@@ -20,7 +20,7 @@ impl Default for AiConfig {
         }
     }
 }
-fn base(config: &AiConfig) -> Result<Url, String> {
+pub(super) fn base(config: &AiConfig) -> Result<Url, String> {
     if !["deepseek", "custom"].contains(&config.provider.as_str()) {
         return Err("请选择有效的 AI 服务".into());
     }
@@ -47,7 +47,7 @@ fn credential(config: &AiConfig) -> Result<keyring::Entry, String> {
     keyring::Entry::new("studio.lora.desktop.ai", url.as_str().trim_end_matches('/'))
         .map_err(|_| "无法访问 Windows 凭据存储".into())
 }
-fn token(config: &AiConfig) -> Result<Option<String>, String> {
+pub(super) fn token(config: &AiConfig) -> Result<Option<String>, String> {
     match credential(config)?.get_password() {
         Ok(value) => Ok(Some(value)),
         Err(keyring::Error::NoEntry) => Ok(None),

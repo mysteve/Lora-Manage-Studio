@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Copy, GripVertical, Plus, Trash2 } from 'lucide-react';
-import { ask, copy } from '../../lib/api';
+import { BookOpen, Copy, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
+import { ask, call, copy } from '../../lib/api';
 import { composePrompt, moveSegment, type PromptDraft, type PromptSegment } from './composer';
 import './prompts.css';
 import { PromptPresets } from './PromptPresets';
+import { PromptInput } from './PromptInput';
+import { PromptLibrary } from './PromptLibrary';
+import { usePromptTerms } from './usePromptTerms';
+import { PromptTranslation, type AiTranslationStatus } from './PromptTranslation';
 
 function DeleteSegment({ label, onDelete }: { label: string; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
@@ -52,7 +57,9 @@ function DeleteSegment({ label, onDelete }: { label: string; onDelete: () => voi
           <p>确定删除此片段？</p>
           <div>
             <button onClick={close}>取消</button>
-            <button className="danger" onClick={onDelete}>确认删除</button>
+            <button className="danger" onClick={onDelete}>
+              确认删除
+            </button>
           </div>
         </div>
       )}
@@ -70,6 +77,22 @@ export function PromptComposer({
   notify: (text: string, error?: boolean) => void;
 }) {
   const [kind, setKind] = useState<PromptSegment['kind']>('positive');
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const library = usePromptTerms();
+  const [ai, setAi] = useState<AiTranslationStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void call<AiTranslationStatus>('get_ai_translation_status')
+      .then((status) => {
+        if (alive) setAi(status);
+      })
+      .catch(() => {
+        if (alive) setAi(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [dragged, setDragged] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
   const [announcement, setAnnouncement] = useState('');
@@ -235,20 +258,25 @@ export function PromptComposer({
                       />
                     </div>
                   </div>
-                  <textarea
-                    data-editor={segment.id}
-                    aria-label={`片段 ${index + 1} 内容`}
-                    rows={2}
+                  <PromptInput
+                    id={segment.id}
+                    label={`片段 ${index + 1} 内容`}
+                    kind={kind}
+                    terms={library.terms}
                     value={segment.text}
-                    placeholder="输入或粘贴提示词…"
-                    onChange={(event) => update(segment.id, { text: event.target.value })}
+                    onChange={(text) => update(segment.id, { text })}
                   />
+                  <PromptTranslation value={segment.text} terms={library.terms} ai={ai} />
                 </div>
               </article>
             </div>
           ))}
         </div>
         <footer className="prompt-footer">
+          <button onClick={() => setLibraryOpen(true)} title={library.error || '维护提示词、翻译和搜索别名'}>
+            <BookOpen size={16} />
+            {library.error ? '词库管理 · 存储异常' : '词库管理'}
+          </button>
           <button
             className="text-button"
             disabled={!draft.segments.length}
@@ -290,6 +318,11 @@ export function PromptComposer({
           </div>
         ))}
       </section>
+      <AnimatePresence>
+        {libraryOpen && (
+          <PromptLibrary key="prompt-library" {...library} onClose={() => setLibraryOpen(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

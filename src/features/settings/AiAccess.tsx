@@ -90,7 +90,9 @@ export function AiAccess() {
         <Bot size={18} />
         AI 接入
       </h2>
-      <p className="field-help">为后续翻译选择 AI 服务。当前仅配置接入，尚未启用翻译。</p>
+      <p className="field-help">
+        配置并保存模型后，可在词句组合中点击 AI 翻译，将当前片段发送到所选服务并显示中文译文。
+      </p>
       <fieldset disabled={!ready || !!busy}>
         <div className="settings-two">
           <label className="field">

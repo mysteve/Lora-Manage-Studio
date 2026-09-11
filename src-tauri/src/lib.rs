@@ -83,6 +83,8 @@ pub fn run() {
             services::ai::ai_has_token,
             services::ai::save_ai_token,
             services::ai::list_ai_models,
+            services::ai_translation::get_ai_translation_status,
+            services::ai_translation::translate_prompt,
             services::updates::check_app_update,
             services::resources::debug_resources_enabled,
             services::resources::debug_resource_snapshot,
