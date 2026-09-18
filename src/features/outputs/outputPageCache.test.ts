@@ -30,4 +30,37 @@ describe('输出图片游标缓存', () => {
     expect(cache.peek(2)).toBeUndefined();
     expect(cache.history()).toEqual([null, 'new']);
   });
+  it('累计模式恢复批次并保留远处批次，预取和追加共用请求', async () => {
+    const first = { nextCursor: 'a' as string | null };
+    const read = vi.fn(async (cursor: string | null) => ({ nextCursor: cursor === 'a' ? 'b' : null }));
+    const cache = outputPageCache(read, [null, 'a'], [first]);
+    expect(await cache.get(0)).toBe(first);
+    const request = cache.get(1);
+    expect(cache.get(1)).toBe(request);
+    await request;
+    await cache.get(2);
+    expect(await cache.get(0)).toBe(first);
+    expect(read.mock.calls).toEqual([['a'], ['b']]);
+  });
+  it('拒绝重复游标且失败后可重试', async () => {
+    const read = vi.fn(async (): Promise<{ nextCursor: string | null }> => ({ nextCursor: 'a' }))
+      .mockResolvedValueOnce({ nextCursor: 'a' })
+      .mockResolvedValueOnce({ nextCursor: 'a' })
+      .mockResolvedValueOnce({ nextCursor: null });
+    const cache = outputPageCache(read, [null], []);
+    await cache.get(0);
+    await expect(cache.get(1)).rejects.toThrow('游标重复');
+    expect((await cache.get(1)).nextCursor).toBeNull();
+  });
+  it('新目录缓存与旧请求隔离', async () => {
+    let resolve!: (value: { nextCursor: string | null }) => void;
+    const old = outputPageCache(() => new Promise<{ nextCursor: string | null }>((done) => { resolve = done; }), [null], []);
+    const request = old.get(0);
+    const current = outputPageCache(async () => ({ nextCursor: null }), [null], []);
+    await current.get(0);
+    resolve({ nextCursor: 'old' });
+    await request;
+    expect(current.history()).toEqual([null]);
+    expect(current.peek(0)?.nextCursor).toBeNull();
+  });
 });

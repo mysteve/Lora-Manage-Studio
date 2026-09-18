@@ -4,6 +4,7 @@ pub mod auth;
 pub mod classification_cache;
 pub mod cover_metadata;
 pub mod downloads;
+pub mod library_pagination;
 pub mod output_metadata;
 pub mod outputs;
 pub mod resources;

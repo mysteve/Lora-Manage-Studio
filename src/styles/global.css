@@ -1350,6 +1350,15 @@ button.card-open:active {
   font-size: 11px;
   padding: 5px 8px;
 }
+.trigger-section button.badge.accent,
+.trigger-section button.badge.accent:hover:not(:disabled),
+.trigger-section button.badge.accent:active:not(:disabled) {
+  background: #d7f580;
+  color: #253218;
+  border-color: var(--border);
+  transform: none;
+  transition: none;
+}
 .recipe-editor {
   padding-top: 22px;
 }

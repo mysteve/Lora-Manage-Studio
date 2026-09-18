@@ -1,0 +1,12 @@
+.output-load-more {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100px;
+  padding: 20px 0;
+  color: var(--muted);
+}
+
+.output-load-more > .error-box {
+  max-width: 100%;
+}

@@ -54,8 +54,6 @@ import { call } from '../../lib/api';
 import { AiAccess } from './AiAccess';
 import { ApiAccess } from './ApiAccess';
 import { SettingsPanel } from './SettingsPanel';
-import { Detail } from '../models/Detail';
-import { blankRecipe } from '../../lib/utils';
 
 function render(component: () => ReactElement) {
   hooks.cursor = 0;
@@ -278,54 +276,6 @@ describe('settings dirty aggregation', () => {
     render(() => ApiAccess(props));
     expect(dirty).toHaveBeenLastCalledWith(true);
     dispose();
-    expect(dirty).toHaveBeenLastCalledWith(false);
-  });
-});
-
-describe('recipe asynchronous save identity', () => {
-  it('keeps edits made after submission and does not replace a newly selected recipe', async () => {
-    const first = { ...blankRecipe('local:'), id: 'first', name: 'First' };
-    const second = { ...blankRecipe('local:'), id: 'second', name: 'Second' };
-    let pending = deferred<typeof first>();
-    vi.mocked(call).mockImplementation(
-      async (command) => (command === 'list_recipes' ? [first, second] : await pending.promise) as never,
-    );
-    const dirty = vi.fn();
-    const props = {
-      selection: { model: { id: 1, name: 'Model', author: '', tags: [], versions: [] }, versionId: 0 },
-      library: [],
-      settings: {},
-      notify: vi.fn(),
-      onDirtyChange: dirty,
-      onClose: vi.fn(),
-      onChanged: vi.fn(),
-      onNeedSettings: vi.fn(),
-      onDownloaded: vi.fn(),
-    } as any;
-    render(() => Detail(props));
-    await flush();
-    let tree = render(() => Detail(props));
-    button(tree, '保存配方').props.onClick();
-    nodes(tree)
-      .find((n) => n.type === 'textarea' && n.props.value === '')
-      .props.onChange({ target: { value: 'later edit' } });
-    tree = render(() => Detail(props));
-    pending.resolve(first);
-    await flush();
-    tree = render(() => Detail(props));
-    expect(nodes(tree).some((n) => n.type === 'textarea' && n.props.value === 'later edit')).toBe(true);
-    expect(dirty).toHaveBeenLastCalledWith(true);
-    pending = deferred<typeof first>();
-    button(tree, '保存配方').props.onClick();
-    nodes(tree)
-      .find((n) => n.type === 'select' && n.props.value === 'first')
-      .props.onChange({ target: { value: 'second' } });
-    await flush();
-    tree = render(() => Detail(props));
-    pending.resolve({ ...first, positive: 'later edit' });
-    await flush();
-    tree = render(() => Detail(props));
-    expect(nodes(tree).some((n) => n.type === 'input' && n.props.value === 'Second')).toBe(true);
     expect(dirty).toHaveBeenLastCalledWith(false);
   });
 });

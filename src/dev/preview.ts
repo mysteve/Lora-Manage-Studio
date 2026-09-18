@@ -1,7 +1,7 @@
 // Development-only visual fixtures. Never enabled in a packaged desktop build.
 import data from './preview-models.json';
 import outputSample from '../assets/safety-cover.png';
-import { parseTriggerWords } from '../lib/utils';
+import { matchesEntry, parseTriggerWords } from '../lib/utils';
 import type {
   DownloadTask,
   LibraryEntry,
@@ -79,7 +79,77 @@ let library: LibraryEntry[] = models.map((m, i) => ({
   version: m.versions[0] ?? null,
   createdAt: Date.now() / 1000 - i,
 }));
+if (new URLSearchParams(location.search).has('library-pagination-preview')) {
+  const originals = [...library];
+  library.push(...Array.from({ length: 65 }, (_, index): LibraryEntry => ({
+    ...originals[index % originals.length],
+    id: `preview-pagination-${String(index).padStart(3, '0')}`,
+    path: `D:\\ComfyUI\\models\\loras\\pagination-example-${index}.safetensors`,
+    name: `无限滚动预览示例 ${String(index + 1).padStart(3, '0')}`,
+    createdAt: 1700000000 - Math.floor(index / 3),
+    size: 1024 * 1024 * (1 + Math.floor(index / 3)),
+    missing: index % 5 === 0,
+    favorite: false,
+  })));
+}
 if (new URLSearchParams(location.search).has('empty')) library = [];
+
+// Rust strings compare Unicode scalar values, not locale collation or UTF-16 units.
+function compareLibraryText(left: string, right: string): number {
+  const a = Array.from(left, (char) => char.codePointAt(0)!);
+  const b = Array.from(right, (char) => char.codePointAt(0)!);
+  for (let index = 0; index < Math.min(a.length, b.length); index++) {
+    if (a[index] !== b[index]) return a[index] - b[index];
+  }
+  return a.length - b.length;
+}
+
+function previewLibraryPage(args: Raw) {
+  const query = String(args.query ?? '').trim().toLowerCase();
+  const baseModel = String(args.baseModel ?? '');
+  const fileStatus = String(args.fileStatus ?? '');
+  const sort = String(args.sort ?? 'newest');
+  if (!['', 'installed', 'missing'].includes(fileStatus) || !['newest', 'size', 'name'].includes(sort)) {
+    throw new Error('无效的模型筛选或排序条件');
+  }
+  const conditions = JSON.stringify([query, baseModel, fileStatus, sort]);
+  type Boundary = { id: string; value: string | number };
+  const boundary = (entry: LibraryEntry): Boundary => ({
+    id: entry.id,
+    value: sort === 'name' ? entry.name : sort === 'size' ? entry.size : entry.createdAt,
+  });
+  const compare = (left: Boundary, right: Boundary) =>
+    (sort === 'name'
+      ? compareLibraryText(String(left.value), String(right.value))
+      : Number(right.value) - Number(left.value)) || compareLibraryText(left.id, right.id);
+  let after: Boundary | null = null;
+  if (args.cursor != null) {
+    try {
+      if (typeof args.cursor !== 'string' || !args.cursor.startsWith('preview-library:')) throw new Error();
+      const cursor = JSON.parse(args.cursor.slice('preview-library:'.length));
+      if (cursor.version !== 1 || cursor.conditions !== conditions ||
+        typeof cursor.after?.id !== 'string' || !cursor.after.id ||
+        (sort === 'name' ? typeof cursor.after.value !== 'string' :
+          typeof cursor.after.value !== 'number' || !Number.isFinite(cursor.after.value))) throw new Error();
+      after = cursor.after;
+    } catch {
+      throw new Error('模型列表游标无效或筛选条件已改变，请刷新列表');
+    }
+  }
+  const filtered = library.filter((entry) => matchesEntry(entry, query) &&
+    (!baseModel || entry.baseModel === baseModel) &&
+    (!fileStatus || (fileStatus === 'missing' ? entry.missing : !entry.missing)))
+    .sort((left, right) => compare(boundary(left), boundary(right)));
+  const remaining = after ? filtered.filter((entry) => compare(boundary(entry), after!) > 0) : filtered;
+  const items = remaining.slice(0, 60);
+  return {
+    items,
+    total: filtered.length,
+    nextCursor: remaining.length > 60
+      ? `preview-library:${JSON.stringify({ version: 1, conditions, after: boundary(items[items.length - 1]) })}`
+      : null,
+  };
+}
 let recipes: Recipe[] = models.slice(0, 3).map((m, i) => ({
   id: `r-${i}`,
   owner: `version:${m.versions[0]?.id}`,
@@ -232,6 +302,8 @@ export async function previewCall(command: string, args: Raw): Promise<unknown> 
       throw new Error('请在桌面应用中打开真实输出目录');
     case 'list_library':
       return library;
+    case 'list_library_page':
+      return previewLibraryPage(args);
     case 'add_local_model': {
       const input = args.input;
       if (!input.name.trim()) throw new Error('模型名称不能为空');

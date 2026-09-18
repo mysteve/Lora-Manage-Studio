@@ -172,6 +172,30 @@ pub fn list_library(state: Shared<'_>) -> Result<Vec<LibraryEntry>, String> {
     }
     Ok(entries)
 }
+#[tauri::command]
+pub async fn list_library_page(
+    state: Shared<'_>,
+    query: String,
+    base_model: String,
+    file_status: String,
+    sort: String,
+    cursor: Option<String>,
+) -> Result<LibraryPage, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::services::library_pagination::list(
+            &state.db,
+            query,
+            base_model,
+            file_status,
+            sort,
+            cursor,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntryEdit {

@@ -1,11 +1,13 @@
-// 每次刷新或更换目录新建缓存，只保留相邻的三页；同页并发读取共用请求。
+// 默认保留相邻三批；累计模式保留批次元数据。同批并发读取共用请求。
 export function outputPageCache<T extends { nextCursor: string | null }>(
   read: (cursor: string | null) => Promise<T>,
   initial: (string | null)[] = [null],
+  // 累计列表保留已读取的批次元数据；不持有已解码图片。
+  retained?: T[],
 ) {
   let cursors = [...initial];
   const pending = new Map<number, Promise<T>>();
-  const ready = new Map<number, T>();
+  const ready = new Map<number, T>(retained?.map((data, index) => [index, data]));
   return {
     history: () => [...cursors],
     peek: (page: number) => ready.get(page),
@@ -13,8 +15,10 @@ export function outputPageCache<T extends { nextCursor: string | null }>(
       if (page < 0 || page >= cursors.length) return Promise.reject(new Error('输出页位置已失效，请刷新列表'));
       const existing = pending.get(page);
       if (existing) return existing;
+      const cached = ready.get(page);
+      if (cached) return Promise.resolve(cached);
       for (const key of pending.keys()) {
-        if (Math.abs(key - page) > 1) {
+        if (!retained && Math.abs(key - page) > 1) {
           pending.delete(key);
           ready.delete(key);
         }

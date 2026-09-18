@@ -1,0 +1,10 @@
+.library-continuation {
+  display: flex;
+  min-height: 76px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+.library-continuation p { margin: 0; overflow-wrap: anywhere; }

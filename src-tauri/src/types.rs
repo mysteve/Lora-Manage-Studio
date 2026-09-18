@@ -116,6 +116,14 @@ pub struct LibraryEntry {
     pub version: Option<ModelVersion>,
     pub created_at: u64,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPage {
+    pub items: Vec<LibraryEntry>,
+    pub next_cursor: Option<String>,
+    pub total: usize,
+}
+
 impl LibraryEntry {
     pub fn recipe_owner(&self) -> String {
         self.version

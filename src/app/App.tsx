@@ -27,7 +27,10 @@ import {
 } from 'lucide-react';
 import { ask, call, desktop, preview, reveal } from '../lib/api';
 import { Badge, CoverImage, Empty, ErrorBox, Loading, Modal, SearchInput } from '../components/ui';
-import { bytes, count, matchesEntry, statusLabels } from '../lib/utils';
+import { bytes, count, statusLabels } from '../lib/utils';
+import { BackToTop } from '../components/BackToTop';
+import { useLibraryPages } from '../features/models/useLibraryPages';
+import { LibraryContinuation, LibraryScrollRestore } from '../features/models/LibraryContinuation';
 import { PromptComposer } from '../features/prompts/PromptComposer';
 import { usePromptDraft } from '../features/prompts/usePromptDraft';
 import { createRequestGate, createTaskTransitions, searchRequest, type SearchConditions, type SearchRequest } from './asyncState';
@@ -90,6 +93,9 @@ export default function App() {
   const [addLocalOpen, setAddLocalOpen] = useState(false);
   const [link, setLink] = useState('');
   const [library, setLibrary] = useState<LibraryEntry[]>([]);
+  const [libraryRevision, setLibraryRevision] = useState(0);
+  const libraryLoadSeq = useRef(0);
+  const libraryScrollTop = useRef(0);
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
   const { draft: promptDraft, setDraft: setPromptDraft, storageError: promptStorageError, hasUnsavedChanges: promptUnsaved } = usePromptDraft({ preview });
   const [initializing, setInitializing] = useState(true);
@@ -167,7 +173,14 @@ export default function App() {
     },
     [notify],
   );
-  const loadLibrary = useCallback(async () => setLibrary(await call<LibraryEntry[]>('list_library')), []);
+  const loadLibrary = useCallback(async () => {
+    const seq = ++libraryLoadSeq.current;
+    const entries = await call<LibraryEntry[]>('list_library');
+    if (seq !== libraryLoadSeq.current) return;
+    setLibrary(entries);
+    setLibraryRevision((revision) => revision + 1);
+    libraryScrollTop.current = 0;
+  }, []);
   useLibraryCoverMetadata(!initializing && !initialError, settings, loadLibrary, notify);
   const loadTasks = useCallback(async () => {
     const loaded = await call<DownloadTask[]>('list_downloads');
@@ -185,6 +198,7 @@ export default function App() {
       ]);
       setSettings(s);
       setLibrary(l);
+      setLibraryRevision((revision) => revision + 1);
       taskTransitions.current.seed(t);
       setTasks(t);
       if (!s.comfyRoot && !s.setupDismissed) setPage('settings');
@@ -328,6 +342,7 @@ export default function App() {
     }
   };
   const openLocal = (entry: LibraryEntry, recipeId?: string) => {
+    if (page === 'library' && !selected) libraryScrollTop.current = window.scrollY;
     invalidateDetail();
     renewPageSession();
     const model: RemoteModel = {
@@ -380,26 +395,16 @@ export default function App() {
         edit: { name: e.name, baseModel: e.baseModel, tags: e.tags, notes: e.notes, favorite: !e.favorite },
       });
       setLibrary((prev) => prev.map((item) => (item.id === e.id ? updated : item)));
+      libraryPages.update(updated);
     });
   };
-  const visibleLibrary = useMemo(
-    () =>
-      library
-        .filter(
-          (e) =>
-            matchesEntry(e, query) &&
-            (!base || e.baseModel === base) &&
-            (!fileStatus || (fileStatus === 'missing' ? e.missing : !e.missing)),
-        )
-        .sort((a, b) =>
-          localSort === 'name'
-            ? a.name.localeCompare(b.name)
-            : localSort === 'size'
-              ? b.size - a.size
-              : b.createdAt - a.createdAt,
-        ),
-    [library, query, base, fileStatus, localSort],
+  const libraryPages = useLibraryPages(
+    { query, baseModel: base, fileStatus, sort: localSort },
+    libraryRevision,
+    !initializing && !initialError && page === 'library' && !selected,
   );
+  const visibleLibrary = libraryPages.items;
+  useEffect(() => { libraryScrollTop.current = 0; }, [query, base, fileStatus, localSort]);
   const bases = useMemo(
     () => [...new Set(library.map((e) => e.baseModel).filter(Boolean))].sort(),
     [library],
@@ -518,7 +523,7 @@ export default function App() {
           </span>
         </div>
       </aside>
-      <main className="main">
+      <main className="main" tabIndex={-1}>
         <div className="breadcrumb" data-tauri-drag-region>
           <span>{page === 'discover' ? 'civitai.red' : '工作空间'}</span>
           <span>/</span>
@@ -658,7 +663,7 @@ export default function App() {
                   </details>
                 )}
                 {page === 'library' && (
-                  <>
+                  <LibraryScrollRestore top={libraryScrollTop.current}>
                     <div className="toolbar">
                       <SearchInput value={query} onChange={setQuery} />
                       <label className="inline-label">
@@ -701,13 +706,13 @@ export default function App() {
                           </button>
                         ))}
                       </div>
-                      <span className="muted">{visibleLibrary.length} 个模型</span>
+                      <span className="muted">已显示 {visibleLibrary.length} / {libraryPages.total} 个模型</span>
                     </div>
                     {initializing ? (
                       <Loading />
                     ) : visibleLibrary.length ? (
                       modelCards(visibleLibrary)
-                    ) : (
+                    ) : libraryPages.loaded && !libraryPages.error && libraryPages.nextCursor === null ? (
                       <Empty
                         title={library.length ? '没有找到匹配的模型' : '你的灵感库，从这里开始'}
                         description={
@@ -732,14 +737,21 @@ export default function App() {
                           </div>
                         }
                       />
-                    )}
+                    ) : null}
+                    {!initializing && <LibraryContinuation
+                      loading={libraryPages.loading}
+                      error={libraryPages.error}
+                      hasMore={!libraryPages.loaded || libraryPages.nextCursor !== null}
+                      count={visibleLibrary.length}
+                      onLoad={libraryPages.loadMore}
+                    />}
                     <footer className="library-footer">
                       <span>
                         {library.length} 个模型 · {bytes(totalSize)} · 资料保存在本机
                       </span>
                       <LayoutGrid size={17} />
                     </footer>
-                  </>
+                  </LibraryScrollRestore>
                 )}
                 {page === 'discover' && (
                   <>
@@ -1035,6 +1047,7 @@ export default function App() {
           </PageTransition>
         </AnimatePresence>
       </main>
+      <BackToTop enabled={!selected && !detailBusy && (page === 'library' || (page === 'outputs' && !outputView.selected))} />
       <AnimatePresence>
         {addLocalOpen && (
           <AddLocalModel
@@ -1044,6 +1057,8 @@ export default function App() {
               invalidateDetail();
               renewPageSession();
               setLibrary((current) => [entry, ...current.filter((item) => item.id !== entry.id)]);
+              setLibraryRevision((revision) => revision + 1);
+              libraryScrollTop.current = 0;
               setQuery('');
               setBase('');
               setFileStatus('');

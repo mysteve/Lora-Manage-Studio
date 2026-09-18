@@ -12,24 +12,15 @@ import { outputPageCache } from './outputPageCache';
 import { ZoomableOutput } from './ZoomableOutput';
 import { outputImagePreload } from './outputImagePreload';
 
-interface OutputImage {
-  path: string;
-  name: string;
-  modified: number;
-  size: number;
-}
-interface OutputImages {
-  directory: string;
-  exists: boolean;
-  total: number;
-  nextCursor: string | null;
-  startIndex: number;
-  items: OutputImage[];
-}
+import { appendOutputBatch, collectedOutputItems, type OutputCollection, type OutputImage, type OutputImages } from './outputCollection';
+import './OutputGallery.css';
+
 export interface OutputView {
   page: number;
   cursors: (string | null)[];
   selected: OutputImage | null;
+  collection?: OutputCollection;
+  scrollTop?: number;
 }
 
 export function OutputGallery({
@@ -50,64 +41,118 @@ export function OutputGallery({
   notify: (text: string, error?: boolean) => void;
 }) {
   const { page, selected } = view;
-  const setPage = (page: number) => onViewChange((previous) => ({ ...previous, page, cursors: cache.history() }));
-  const setSelected = useCallback((selected: OutputImage | null) =>
-    onViewChange((previous) => ({ ...previous, selected })), [onViewChange]);
+  const directoryKey = JSON.stringify([settings.comfyRoot, settings.outputDir]);
+  const batches = useMemo(() => view.collection?.directoryKey === directoryKey
+    ? view.collection.batches : [], [view.collection, directoryKey]);
+  const data = batches[page] ?? null;
+  const last = batches.at(-1);
+  const setSelected = useCallback((selected: OutputImage | null, page?: number) => {
+    const scrollTop = selected ? window.scrollY : undefined;
+    onViewChange((previous) => ({
+      ...previous, selected, page: page ?? previous.page,
+      scrollTop: selected && !previous.selected ? scrollTop : previous.scrollTop,
+    }));
+  }, [onViewChange]);
   const [revision, setRevision] = useState(0);
-  const [data, setData] = useState<OutputImages | null>(null);
-  const [busy, setBusy] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const cache = useMemo(
-    () => outputPageCache((cursor) => call<OutputImages>('list_output_images', { cursor }), revision === 0 ? view.cursors : [null]),
-    [settings.comfyRoot, settings.outputDir, revision],
+    () => outputPageCache((cursor) => call<OutputImages>('list_output_images', { cursor }),
+      view.collection?.directoryKey === directoryKey ? view.cursors : [null], batches),
+    [directoryKey, revision],
   );
+  const currentCache = useRef(cache);
+  currentCache.current = cache;
+  const mounted = useRef(false);
   const imagePreload = useMemo(() => outputImagePreload(), [cache]);
   useEffect(() => () => imagePreload.clear(), [imagePreload]);
   const navigationRequest = useRef(0);
   const [turning, setTurning] = useState(false);
   const navigationLocked = useRef(false);
+  const loading = useRef(false);
   const galleryRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<string | null>(null);
   const configured = !!(settings.comfyRoot || settings.outputDir);
-  useEffect(() => {
-    let active = true;
-    setData(cache.peek(page) ?? null);
+  const commitBatch = useCallback((batchPage: number, result: OutputImages) => {
+    if (!mounted.current || currentCache.current !== cache) return;
+    onViewChange((previous) => {
+      if (currentCache.current !== cache) return previous;
+      const old = previous.collection?.directoryKey === directoryKey ? previous.collection.batches : [];
+      const next = appendOutputBatch(old, batchPage, result);
+      if (next === old) return previous;
+      return { ...previous, cursors: cache.history(), collection: { directoryKey, batches: next } };
+    });
+  }, [cache, directoryKey, onViewChange]);
+  const loadMore = useCallback(() => {
+    if (!configured || loading.current || (last && !last.nextCursor)) return;
+    loading.current = true;
+    setBusy(true);
     setError('');
-    setBusy(configured && !cache.peek(page));
-    if (configured)
-      void cache
-        .get(page)
-        .then((result) => {
-          if (active) {
-            setData(result);
-            onViewChange((previous) => ({
-              ...previous,
-              cursors: cache.history(),
-              selected: previous.selected
-                ? (result.items.find((item) => item.path === previous.selected?.path) ?? result.items[0] ?? null)
-                : null,
-            }));
-          }
-        })
-        .catch((e) => {
-          if (active) setError(String(e));
-        })
-        .finally(() => {
-          if (active) {
-            setBusy(false);
-            navigationLocked.current = false;
-          }
-        });
-    return () => {
-      active = false;
-    };
-  }, [configured, cache, page]);
+    void cache.get(batches.length)
+      .then((result) => commitBatch(batches.length, result))
+      .catch((e) => { if (mounted.current && currentCache.current === cache) setError(String(e)); })
+      .finally(() => {
+        if (mounted.current && currentCache.current === cache) {
+          loading.current = false;
+          setBusy(false);
+        }
+      });
+  }, [configured, cache, batches.length, last, commitBatch]);
   useEffect(() => {
+    mounted.current = true;
+    loading.current = false;
+    setBusy(false);
+    setError('');
+    setTurning(false);
+    if (view.collection && view.collection.directoryKey !== directoryKey) {
+      onViewChange({ page: 0, selected: null, cursors: [null], scrollTop: 0 });
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
     return () => {
+      mounted.current = false;
       navigationRequest.current++;
       navigationLocked.current = false;
     };
   }, [cache]);
+  useEffect(() => {
+    if (!batches.length && !error) loadMore();
+  }, [batches.length, error, loadMore]);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !configured || selected || busy || error || !last?.nextCursor || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMore();
+    }, { root: null, rootMargin: '400px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [configured, selected, busy, error, last, loadMore]);
+  const viewing = useRef(!!selected);
+  viewing.current = !!selected || !!returnFocus.current;
+  useEffect(() => {
+    // 返回关联详情或关闭看图后恢复位置；看图锁滚动期间不覆盖列表位置。
+    if (selected) return;
+    const scrollTop = view.collection?.directoryKey === directoryKey ? view.scrollTop ?? 0 : 0;
+    const frame = requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: 'instant' }));
+    return () => cancelAnimationFrame(frame);
+  }, [directoryKey, !!selected]);
+  useEffect(() => {
+    let tick = 0;
+    const save = () => {
+      if (tick || viewing.current) return;
+      tick = requestAnimationFrame(() => {
+        tick = 0;
+        if (viewing.current) return;
+        const scrollTop = window.scrollY;
+        onViewChange((previous) => previous.scrollTop === scrollTop ? previous : { ...previous, scrollTop });
+      });
+    };
+    window.addEventListener('scroll', save, { passive: true });
+    return () => {
+      cancelAnimationFrame(tick);
+      window.removeEventListener('scroll', save);
+    };
+  }, [directoryKey, onViewChange]);
   const selectedIndex = data?.items.findIndex((item) => item.path === selected?.path) ?? -1;
   useEffect(() => {
     if (!selected || !data || selectedIndex < 0) {
@@ -147,7 +192,7 @@ export function OutputGallery({
     };
   }, [cache, page, selectedIndex, !!selected, data, imagePreload]);
   const move = (direction: -1 | 1) => {
-    if (busy || navigationLocked.current || !data) return;
+    if (navigationLocked.current || !data) return;
     const target = adjacentOutput(page, selectedIndex, data.items.length, !!data.nextCursor, direction);
     if (!target) return;
     if (target.page === page) setSelected(data.items[target.index]);
@@ -155,18 +200,17 @@ export function OutputGallery({
       navigationLocked.current = true;
       const request = ++navigationRequest.current;
       setTurning(true);
-      setError('');
       void cache
         .get(target.page)
         .then((result) => {
-          if (request !== navigationRequest.current) return;
+          if (request !== navigationRequest.current || currentCache.current !== cache || !mounted.current) return;
           const item = target.index < 0 ? result.items.at(-1) : result.items[target.index];
           if (!item) {
             notify('输出目录内容已变化，请刷新列表', true);
             return;
           }
-          setData(result);
-          onViewChange({ page: target.page, selected: item, cursors: cache.history() });
+          commitBatch(target.page, result);
+          onViewChange((previous) => ({ ...previous, page: target.page, selected: item, cursors: cache.history() }));
         })
         .catch((e) => {
           if (request === navigationRequest.current) notify(String(e), true);
@@ -179,14 +223,15 @@ export function OutputGallery({
         });
     }
   };
+  const items = useMemo(() => collectedOutputItems(batches), [batches]);
   const cards = useMemo(() => (
         <div className="output-grid">
-          {data?.items.map((item) => (
+          {items.map(({ item, page }) => (
             <button
               className="output-card"
               key={item.path}
               data-output-path={item.path}
-              onClick={() => setSelected(item)}
+              onClick={() => setSelected(item, page)}
             >
               <OutputPicture item={item} />
               <strong title={item.name}>{item.name}</strong>
@@ -196,9 +241,13 @@ export function OutputGallery({
             </button>
           ))}
         </div>
-  ), [data?.items, setSelected]);
+  ), [items, setSelected]);
   const refresh = () => {
-    onViewChange({ page: 0, selected: null, cursors: [null] });
+    navigationRequest.current++;
+    navigationLocked.current = false;
+    imagePreload.clear();
+    onViewChange({ page: 0, selected: null, cursors: [null], scrollTop: 0 });
+    window.scrollTo({ top: 0, behavior: 'instant' });
     setRevision((value) => value + 1);
   };
   const perform = (operation: Promise<unknown>) => void operation.catch((e) => notify(String(e), true));
@@ -214,7 +263,7 @@ export function OutputGallery({
             <SettingsIcon size={17} />
             设置目录
           </button>
-          <button disabled={!data?.exists || busy} onClick={() => perform(call('open_output_directory'))}>
+          <button disabled={!batches[0]?.exists || busy} onClick={() => perform(call('open_output_directory'))}>
             <FolderOpen size={17} />
             打开目录
           </button>
@@ -227,10 +276,10 @@ export function OutputGallery({
           </button>
         </div>
       </header>
-      {data && (
+      {batches[0] && (
         <div className="output-location">
-          <span>{data.directory}</span>
-          <small>{data.total} 张图片</small>
+          <span>{batches[0].directory}</span>
+          <small>{batches[0].total} 张图片</small>
         </div>
       )}
       {!configured ? (
@@ -239,39 +288,33 @@ export function OutputGallery({
           description="绑定 ComfyUI 后自动读取 output 文件夹，也可以单独指定其他图像目录。"
           action={<button onClick={onSettings}>前往设置</button>}
         />
-      ) : busy ? (
-        <Loading text="正在读取图像…" />
-      ) : error ? (
-        <ErrorBox message={error} retry={refresh} />
-      ) : data && !data.items.length ? (
+      ) : !batches.length ? (
+        error ? <ErrorBox message={error} retry={loadMore} /> : <Loading text="正在读取图像…" />
+      ) : !batches.some((batch) => batch.items.length) && !last?.nextCursor ? (
         <Empty
-          title={page > 0 ? '当前页已没有图像' : data.exists ? '还没有图像' : '输出目录尚不存在'}
+          title={last?.exists ? '还没有图像' : '输出目录尚不存在'}
           description="支持 PNG、JPG、JPEG 和 WebP。生成图片后点击刷新，或在设置中指定实际输出目录。"
         />
-      ) : (
-        cards
-      )}
-      {data && (page > 0 || data.nextCursor) && (
-        <div className="output-pagination">
-          <button disabled={busy || page === 0} onClick={() => setPage(page - 1)}>
-            上一页
-          </button>
-          <span>
-            {page + 1}
-          </span>
-          <button disabled={busy || !data.nextCursor} onClick={() => setPage(page + 1)}>
-            下一页
-          </button>
+      ) : cards}
+      {configured && batches.length > 0 && (
+        <div className="output-load-more" ref={sentinelRef} aria-live="polite">
+          {busy ? <Loading text="正在加载更多图像…" /> : error ? (
+            <ErrorBox message={error} retry={loadMore} />
+          ) : last?.nextCursor ? (
+            <button onClick={loadMore}>加载更多图像</button>
+          ) : <span>已到底，共加载 {items.length} 张图像</span>}
         </div>
       )}
       <AnimatePresence
         onExitComplete={() => {
+          window.scrollTo({ top: view.scrollTop ?? 0, behavior: 'instant' });
           if (!returnFocus.current) return;
           const cards = Array.from(
             galleryRef.current?.querySelectorAll<HTMLButtonElement>('.output-card') ?? [],
           );
           (cards.find((card) => card.dataset.outputPath === returnFocus.current) ?? cards[0])?.focus({ preventScroll: true });
           returnFocus.current = null;
+          viewing.current = false;
         }}
       >
         {selected && (
@@ -279,7 +322,7 @@ export function OutputGallery({
             name={selected.name}
             position={selectedIndex < 0 ? 0 : (data?.startIndex ?? 0) + selectedIndex + 1}
             total={data?.total ?? 0}
-            busy={busy || turning}
+            busy={turning}
             canPrevious={!!data && !!adjacentOutput(page, selectedIndex, data.items.length, !!data.nextCursor, -1)}
             canNext={!!data && !!adjacentOutput(page, selectedIndex, data.items.length, !!data.nextCursor, 1)}
             onMove={move}
@@ -303,7 +346,6 @@ export function OutputGallery({
             }
           >
             <ZoomableOutput src={asset(selected.path)} name={selected.name} onMove={move} />
-            {error && <ErrorBox message={error} retry={refresh} />}
           </OutputViewer>
         )}
       </AnimatePresence>

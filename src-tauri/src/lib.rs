@@ -106,6 +106,7 @@ pub fn run() {
             commands::resolve_link,
             commands::model_details,
             commands::list_library,
+            commands::list_library_page,
             commands::add_local_model,
             commands::update_entry,
             commands::remove_entry,

@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -11,7 +11,6 @@ import {
   Heart,
   ImagePlus,
   Loader2,
-  Plus,
   RefreshCw,
   Save,
   SlidersHorizontal,
@@ -19,21 +18,10 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import { ask, call, chooseImage, copy, external, reveal } from '../../lib/api';
-import { Badge, Loading, Modal } from '../../components/ui';
+import { Badge, Modal } from '../../components/ui';
 import { ImageGallery } from './ImageGallery';
-import { TriggerPreviews } from './TriggerPreviews';
-import { blankRecipe, bytes, combine, modelTriggerWords, owner, parseTriggerWords } from '../../lib/utils';
-import type { LibraryEntry, ModelVersion, Recipe, RemoteModel, Settings } from '../../types/models';
-
-// Apply server-generated identity while retaining fields edited after submission.
-export function reconcileSavedRecipe(current: Recipe, submitted: Recipe, result: Recipe): Recipe {
-  return Object.fromEntries(
-    Object.entries(result).map(([key, value]) => [
-      key,
-      current[key as keyof Recipe] === submitted[key as keyof Recipe] ? value : current[key as keyof Recipe],
-    ]),
-  ) as unknown as Recipe;
-}
+import { bytes } from '../../lib/utils';
+import type { LibraryEntry, RemoteModel, Settings } from '../../types/models';
 
 interface Props {
   selection: { model: RemoteModel; versionId: number; entryId?: string; fileId?: number; recipeId?: string };
@@ -52,7 +40,6 @@ export function Detail({
   library,
   settings,
   notify,
-  onDirtyChange,
   onClose,
   onChanged,
   onNeedSettings,
@@ -74,30 +61,10 @@ export function Detail({
     [version],
   );
   const file = safeFiles.find((f) => f.id === fileId) ?? safeFiles.find((f) => f.primary) ?? safeFiles[0];
-  const recipeOwner = owner(entry, version);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [recipe, setRecipe] = useState<Recipe>(blankRecipe(recipeOwner));
-  const [saved, setSaved] = useState('');
-  const recipeIdentity = useRef(0);
-  const recipeRequest = useRef(0);
-  const activeOwner = useRef(recipeOwner);
-  activeOwner.current = recipeOwner;
-  const selectRecipe = (value: Recipe) => {
-    recipeIdentity.current++;
-    setRecipe(value);
-    setSaved(JSON.stringify(value));
-  };
-  const [recipeLoading, setRecipeLoading] = useState(true);
-  const [recipeError, setRecipeError] = useState('');
   const [busy, setBusy] = useState('');
-  const [tab, setTab] = useState(entry && !selection.recipeId ? 'previews' : 'recipe');
+  const [tab, setTab] = useState('recipe');
   const [editOpen, setEditOpen] = useState(false);
   const [bindLink, setBindLink] = useState('');
-  const dirty = !!saved && JSON.stringify(recipe) !== saved;
-  useEffect(() => {
-    onDirtyChange(dirty);
-    return () => onDirtyChange(false);
-  }, [dirty, onDirtyChange]);
   const perform = async (key: string, fn: () => Promise<unknown>) => {
     setBusy(key);
     try {
@@ -108,56 +75,9 @@ export function Detail({
       setBusy('');
     }
   };
-  const reloadRecipes = useCallback(async () => {
-    const request = ++recipeRequest.current;
-    recipeIdentity.current++;
-    const isCurrent = () => request === recipeRequest.current && recipeOwner === activeOwner.current;
-    setRecipeLoading(true);
-    setRecipeError('');
-    try {
-      const list = await call<Recipe[]>('list_recipes', { owner: recipeOwner });
-      if (!isCurrent()) return;
-      const r = list.find((r) => r.id === selection.recipeId) ?? list[0] ?? blankRecipe(recipeOwner);
-      setRecipes(list);
-      setRecipe(r);
-      setSaved(JSON.stringify(r));
-    } catch (e) {
-      if (isCurrent()) setRecipeError(String(e));
-    } finally {
-      if (isCurrent()) setRecipeLoading(false);
-    }
-  }, [recipeOwner, selection.recipeId]);
-  useEffect(() => {
-    void reloadRecipes();
-    return () => {
-      recipeRequest.current++;
-      recipeIdentity.current++;
-    };
-  }, [reloadRecipes]);
   useEffect(() => {
     setFileId(version?.id === selection.versionId ? (selection.fileId ?? 0) : 0);
   }, [version?.id, selection.fileId, selection.versionId]);
-  const guard = async () => !dirty || (await ask('配方有尚未保存的修改，确认放弃这些修改？'));
-  const close = async () => {
-    if (await guard()) onClose();
-  };
-  const switchVersion = async (id: number) => {
-    if (await guard()) setVid(id);
-  };
-  const save = async () =>
-    perform('save', async () => {
-      const submitted = recipe;
-      const identity = recipeIdentity.current;
-      const request = recipeRequest.current;
-      const result = await call<Recipe>('save_recipe', { recipe: submitted });
-      if (request !== recipeRequest.current || activeOwner.current !== submitted.owner) return;
-      if (identity === recipeIdentity.current) {
-        setRecipe((current) => reconcileSavedRecipe(current, submitted, result));
-        setSaved(JSON.stringify(result));
-      }
-      setRecipes((list) => [result, ...list.filter((r) => r.id !== result.id)]);
-      notify('配方已保存到本机');
-    });
   const copyText = async (text: string) =>
     perform('copy', async () => {
       await copy(text);
@@ -170,7 +90,6 @@ export function Detail({
       return;
     }
     if (!version || !file) return;
-    if (!(await guard())) return;
     await perform('download', async () => {
       await call('enqueue_download', { modelId: selection.model.id, versionId: version.id, fileId: file.id });
       notify('已加入下载队列');
@@ -186,11 +105,15 @@ export function Detail({
       notify('封面已更新');
     });
   };
-  const patchRecipe = (patch: Partial<Recipe>) => setRecipe((prev) => ({ ...prev, ...patch }));
   return (
     <section className="detail-page">
       <header className="detail-header">
-        <button className="icon-button back-button" onClick={close} aria-label={backLabel} title={backLabel}>
+        <button
+          className="icon-button back-button"
+          onClick={onClose}
+          aria-label={backLabel}
+          title={backLabel}
+        >
           <ArrowLeft size={20} />
         </button>
         <div>
@@ -206,7 +129,7 @@ export function Detail({
           {entry && (
             <button onClick={() => setEditOpen(true)}>
               <SlidersHorizontal size={19} />
-              编辑别名与触发词
+              编辑本地资料
             </button>
           )}
           {!!(entry?.modelId ?? selection.model.id) && (
@@ -331,13 +254,8 @@ export function Detail({
         </div>
         <div className="detail-panel">
           <div className="tabs">
-            {entry && (
-              <button className={tab === 'previews' ? 'active' : ''} onClick={() => setTab('previews')}>
-                组合预览
-              </button>
-            )}
             <button className={tab === 'recipe' ? 'active' : ''} onClick={() => setTab('recipe')}>
-              创作配方
+              官方触发词
             </button>
             <button className={tab === 'info' ? 'active' : ''} onClick={() => setTab('info')}>
               模型信息
@@ -348,7 +266,7 @@ export function Detail({
             <select
               aria-label="模型版本"
               value={version?.id ?? 0}
-              onChange={(e) => void switchVersion(Number(e.target.value))}
+              onChange={(e) => setVid(Number(e.target.value))}
               disabled={!!busy}
             >
               {versions.length ? (
@@ -367,213 +285,36 @@ export function Detail({
               </Badge>
             )}
           </div>
-          {tab === 'previews' && entry ? (
-            <TriggerPreviews key={entry.id} entry={entry} onChanged={onChanged} notify={notify} />
-          ) : tab === 'recipe' ? (
-            <>
-              <div className="trigger-section">
-                <strong>官方触发词</strong>
-                <div className="tag-list">
-                  {version?.trainedWords.length ? (
-                    version.trainedWords.map((w, i) => (
-                      <Badge key={i} tone="accent">
-                        {w}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="muted">作者未提供触发词</span>
-                  )}
-                </div>
-                <button
-                  className="icon-button"
-                  aria-label="复制官方触发词"
-                  disabled={!version?.trainedWords.length}
-                  onClick={() => copyText((version?.trainedWords ?? []).join(', '))}
-                >
-                  <Copy size={17} />
-                </button>
+          {tab === 'recipe' ? (
+            <div className="trigger-section">
+              <strong>官方触发词</strong>
+              <div className="tag-list">
+                {version?.trainedWords.length ? (
+                  version.trainedWords.map((w, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="badge accent"
+                      aria-label={`复制触发词 ${w}`}
+                      title="点击复制此触发词"
+                      onClick={() => void copyText(w)}
+                    >
+                      {w}
+                    </button>
+                  ))
+                ) : (
+                  <span className="muted">作者未提供触发词</span>
+                )}
               </div>
-              {entry && (
-                <div className="trigger-section">
-                  <strong>自定义触发词</strong>
-                  <div className="tag-list">
-                    {entry.triggerWords?.length ? (
-                      entry.triggerWords.map((word) => (
-                        <Badge key={word} tone="accent">
-                          {word}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="muted">可添加自己训练或常用的触发词</span>
-                    )}
-                  </div>
-                  <button
-                    className="icon-button"
-                    aria-label="复制自定义触发词"
-                    disabled={!entry.triggerWords?.length}
-                    onClick={() => copyText((entry.triggerWords ?? []).join(', '))}
-                  >
-                    <Copy size={17} />
-                  </button>
-                  <button onClick={() => setEditOpen(true)}>编辑</button>
-                </div>
-              )}
-              {recipeLoading ? (
-                <Loading text="正在读取个人配方…" />
-              ) : recipeError ? (
-                <p className="error-box">
-                  {recipeError}
-                  <button onClick={reloadRecipes}>重试</button>
-                </p>
-              ) : (
-                <div className="recipe-editor">
-                  <div className="recipe-selector">
-                    <strong>我的配方</strong>
-                    <select
-                      aria-label="选择个人配方"
-                      value={recipe.id}
-                      onChange={async (e) => {
-                        const id = e.target.value;
-                        if (await guard()) {
-                          const r = recipes.find((r) => r.id === id) ?? blankRecipe(recipeOwner);
-                          selectRecipe(r);
-                        }
-                      }}
-                    >
-                      <option value="">新配方</option>
-                      {recipes.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={async () => {
-                        if (await guard()) {
-                          const r = { ...blankRecipe(recipeOwner), name: `新配方 ${recipes.length + 1}` };
-                          selectRecipe(r);
-                        }
-                      }}
-                    >
-                      <Plus size={16} />
-                      新建
-                    </button>
-                  </div>
-                  <label className="field">
-                    配方名称
-                    <input
-                      value={recipe.name}
-                      onChange={(e) => patchRecipe({ name: e.target.value })}
-                      maxLength={120}
-                    />
-                  </label>
-                  <label className="field">
-                    正向提示词
-                    <div className="textarea-wrap">
-                      <textarea
-                        value={recipe.positive}
-                        onChange={(e) => patchRecipe({ positive: e.target.value })}
-                        placeholder="写下画面、风格、光线与细节…"
-                        rows={4}
-                      />
-                      <button
-                        className="textarea-copy"
-                        title="复制正向提示词"
-                        aria-label="复制正向提示词"
-                        onClick={() => copyText(recipe.positive)}
-                      >
-                        <Copy size={15} />
-                      </button>
-                    </div>
-                  </label>
-                  <label className="field">
-                    负向提示词
-                    <div className="textarea-wrap">
-                      <textarea
-                        value={recipe.negative}
-                        onChange={(e) => patchRecipe({ negative: e.target.value })}
-                        placeholder="不希望在画面中出现的内容…"
-                        rows={3}
-                      />
-                      <button
-                        className="textarea-copy"
-                        title="复制负向提示词"
-                        aria-label="复制负向提示词"
-                        onClick={() => copyText(recipe.negative)}
-                      >
-                        <Copy size={15} />
-                      </button>
-                    </div>
-                  </label>
-                  <div className="weight-row">
-                    <label>
-                      模型权重
-                      <input
-                        type="number"
-                        min={-20}
-                        max={20}
-                        step={0.05}
-                        value={recipe.modelWeight}
-                        onChange={(e) => patchRecipe({ modelWeight: Number(e.target.value) })}
-                      />
-                    </label>
-                    <label>
-                      CLIP 权重
-                      <input
-                        type="number"
-                        min={-20}
-                        max={20}
-                        step={0.05}
-                        value={recipe.clipWeight}
-                        onChange={(e) => patchRecipe({ clipWeight: Number(e.target.value) })}
-                      />
-                    </label>
-                  </div>
-                  <label className="field">
-                    备注
-                    <textarea
-                      value={recipe.notes}
-                      onChange={(e) => patchRecipe({ notes: e.target.value })}
-                      placeholder="适用场景、搭配建议或这次的灵感…"
-                      rows={2}
-                    />
-                  </label>
-                  <div className="recipe-footer">
-                    {recipe.id && (
-                      <button
-                        className="icon-button danger"
-                        aria-label="删除配方"
-                        disabled={!!busy}
-                        onClick={() =>
-                          perform('delete-recipe', async () => {
-                            if (await ask(`删除配方「${recipe.name}」？`)) {
-                              await call('delete_recipe', { id: recipe.id });
-                              await reloadRecipes();
-                            }
-                          })
-                        }
-                      >
-                        <Trash2 size={17} />
-                      </button>
-                    )}
-                    <span className="save-hint">{dirty ? '有未保存的修改' : '仅保存在本机'}</span>
-                    <button
-                      onClick={() => copyText(combine(modelTriggerWords(entry, version), recipe.positive))}
-                    >
-                      <Copy size={17} />
-                      复制组合提示词
-                    </button>
-                    <button className="primary" disabled={!!busy} onClick={save}>
-                      {busy === 'save' ? <Loader2 size={17} className="spin" /> : <Save size={17} />}保存配方
-                    </button>
-                  </div>
-                  <p className="field-help">
-                    组合复制包含官方触发词、自定义触发词和正向提示词，重复的触发词只保留一次。权重请在 ComfyUI
-                    的 LoRA 节点中设置。
-                  </p>
-                </div>
-              )}
-            </>
+              <button
+                className="icon-button"
+                aria-label="复制官方触发词"
+                disabled={!version?.trainedWords.length}
+                onClick={() => copyText((version?.trainedWords ?? []).join(', '))}
+              >
+                <Copy size={17} />
+              </button>
+            </div>
           ) : (
             <div className="model-info-tab">
               <h2>文件与来源</h2>
@@ -723,7 +464,6 @@ function EntryEditor({
   notify: Props['notify'];
 }) {
   const [name, setName] = useState(entry.name);
-  const [triggerWords, setTriggerWords] = useState((entry.triggerWords ?? []).join('\n'));
   const [base, setBase] = useState(entry.baseModel);
   const [tags, setTags] = useState(entry.tags.join(', '));
   const [notes, setNotes] = useState(entry.notes);
@@ -736,16 +476,6 @@ function EntryEditor({
         <input value={name} onChange={(e) => setName(e.target.value)} />
       </label>
       <p className="field-help">别名用于模型库展示和搜索，不会修改模型文件名。</p>
-      <label className="field">
-        自定义触发词
-        <textarea
-          rows={3}
-          value={triggerWords}
-          onChange={(e) => setTriggerWords(e.target.value)}
-          placeholder="每行一个，也可使用中英文逗号分隔"
-        />
-      </label>
-      <p className="field-help">与官方触发词分别保存，刷新网站资料时保留。清空后保存即可移除自定义触发词。</p>
       <label className="field">
         基础模型
         <input value={base} onChange={(e) => setBase(e.target.value)} placeholder="例如 SDXL 1.0" />
@@ -775,7 +505,7 @@ function EntryEditor({
                 id: entry.id,
                 edit: {
                   name,
-                  triggerWords: parseTriggerWords(triggerWords),
+                  triggerWords: entry.triggerWords,
                   baseModel: base,
                   tags: tags.split(/[,，]/),
                   notes,
