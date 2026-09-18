@@ -10,7 +10,9 @@ export function SettingsPanel({
   onClose,
   onSaved,
   notify,
+  onDirtyChange,
 }: {
+  onDirtyChange?: (dirty: boolean) => void;
   settings: Settings;
   onClose: () => void;
   onSaved: (s: Settings) => Promise<void>;
@@ -23,6 +25,21 @@ export function SettingsPanel({
     { id: 'ai', label: 'AI 接入', icon: Bot },
   ] as const;
   const [draft, setDraft] = useState(settings);
+  const [baseline, setBaseline] = useState(settings);
+  const [aiDirty, setAiDirty] = useState(false);
+  const [websiteTokenDirty, setWebsiteTokenDirty] = useState(false);
+  const dirty =
+    aiDirty ||
+    websiteTokenDirty ||
+    draft.comfyRoot !== baseline.comfyRoot ||
+    draft.outputDir !== baseline.outputDir ||
+    draft.proxyMode !== baseline.proxyMode ||
+    draft.proxyUrl !== baseline.proxyUrl ||
+    draft.safeContent !== baseline.safeContent;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const [busy, setBusy] = useState('');
   const [location, setLocation] = useState('');
   useEffect(() => {
@@ -48,6 +65,7 @@ export function SettingsPanel({
         settings: settingsForTab(latest, draft, current),
       });
       setDraft((previous) => settingsForTab(previous, saved, current));
+      setBaseline((previous) => settingsForTab(previous, saved, current));
       await onSaved(saved);
       notify(current === 'workspace' ? '工作空间设置已保存' : '网站访问设置已保存');
     });
@@ -121,6 +139,7 @@ export function SettingsPanel({
                   placeholder="例如 D:\ComfyUI，或 ComfyUI_windows_portable"
                 />
                 <button
+                  disabled={!!busy}
                   onClick={() =>
                     perform('folder', async () => {
                       const path = await chooseDirectory();
@@ -204,7 +223,7 @@ export function SettingsPanel({
               <KeyRound size={18} />
               civitai.red 访问
             </h2>
-            <ApiAccess notify={notify} />
+            <ApiAccess notify={notify} onDirtyChange={setWebsiteTokenDirty} />
             <div className="settings-two">
               <label className="field">
                 代理模式
@@ -257,7 +276,7 @@ export function SettingsPanel({
           hidden={tab !== 'ai'}
           tabIndex={0}
         >
-          <AiAccess />
+          <AiAccess onDirtyChange={setAiDirty} />
         </div>
       </div>
     </div>

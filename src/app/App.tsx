@@ -29,7 +29,8 @@ import { ask, call, desktop, preview, reveal } from '../lib/api';
 import { Badge, CoverImage, Empty, ErrorBox, Loading, Modal, SearchInput } from '../components/ui';
 import { bytes, count, matchesEntry, statusLabels } from '../lib/utils';
 import { PromptComposer } from '../features/prompts/PromptComposer';
-import type { PromptDraft } from '../features/prompts/composer';
+import { usePromptDraft } from '../features/prompts/usePromptDraft';
+import { createRequestGate, createTaskTransitions, searchRequest, type SearchConditions, type SearchRequest } from './asyncState';
 import { Detail } from '../features/models/Detail';
 import { AddLocalModel } from '../features/models/AddLocalModel';
 import { AboutDialog } from '../features/about/AboutDialog';
@@ -90,7 +91,7 @@ export default function App() {
   const [link, setLink] = useState('');
   const [library, setLibrary] = useState<LibraryEntry[]>([]);
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
-  const [promptDraft, setPromptDraft] = useState<PromptDraft>({ segments: [] });
+  const { draft: promptDraft, setDraft: setPromptDraft, storageError: promptStorageError, hasUnsavedChanges: promptUnsaved } = usePromptDraft({ preview });
   const [initializing, setInitializing] = useState(true);
   const [initialError, setInitialError] = useState('');
   const [scan, setScan] = useState<ScanProgress | null>(null);
@@ -119,13 +120,42 @@ export default function App() {
   const [importBusy, setImportBusy] = useState(false);
   const [taskTab, setTaskTab] = useState('all');
   const [hasUnsaved, setHasUnsaved] = useState(false);
-  const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [pageSession, setPageSession] = useState(0);
+  const pageSessionRef = useRef(0);
+  const detailGate = useRef(createRequestGate());
+  const taskTransitions = useRef(createTaskTransitions());
+  const committedSearch = useRef<SearchConditions>({ query: '', baseModel: '', tag: '', sort: 'Most Downloaded' });
+  const lastSearch = useRef<SearchRequest | null>(null);
+  const [toast, setToast] = useState<{ text: string; error: boolean; action?: { label: string; run: () => void } } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const searchSeq = useRef(0);
-  const notify = useCallback((text: string, error = false) => {
-    setToast({ text, error });
+  const notify = useCallback((text: string, error = false, action?: { label: string; run: () => void }) => {
+    setToast({ text, error, action });
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), error ? 8500 : 3800);
+    toastTimer.current = setTimeout(() => setToast(null), error || action ? 8500 : 3800);
+  }, []);
+  const invalidateDetail = useCallback(() => {
+    detailGate.current.invalidate();
+    setDetailBusy(false);
+    setImportBusy(false);
+  }, []);
+  const renewPageSession = useCallback(() => {
+    pageSessionRef.current += 1;
+    setPageSession(pageSessionRef.current);
+    setHasUnsaved(false);
+    setSettingsDirty(false);
+  }, []);
+  const detailDirtyChange = useCallback((dirty: boolean) => {
+    if (pageSessionRef.current === pageSession) setHasUnsaved(dirty);
+  }, [pageSession]);
+  const settingsDirtyChange = useCallback((dirty: boolean) => {
+    if (pageSessionRef.current === pageSession) setSettingsDirty(dirty);
+  }, [pageSession]);
+  useEffect(() => () => {
+    detailGate.current.invalidate();
+    searchSeq.current += 1;
+    clearTimeout(toastTimer.current);
   }, []);
   const perform = useCallback(
     async (fn: () => Promise<unknown>) => {
@@ -139,7 +169,11 @@ export default function App() {
   );
   const loadLibrary = useCallback(async () => setLibrary(await call<LibraryEntry[]>('list_library')), []);
   useLibraryCoverMetadata(!initializing && !initialError, settings, loadLibrary, notify);
-  const loadTasks = useCallback(async () => setTasks(await call<DownloadTask[]>('list_downloads')), []);
+  const loadTasks = useCallback(async () => {
+    const loaded = await call<DownloadTask[]>('list_downloads');
+    taskTransitions.current.seed(loaded);
+    setTasks(loaded);
+  }, []);
   const initialize = useCallback(async () => {
     setInitializing(true);
     setInitialError('');
@@ -151,6 +185,7 @@ export default function App() {
       ]);
       setSettings(s);
       setLibrary(l);
+      taskTransitions.current.seed(t);
       setTasks(t);
       if (!s.comfyRoot && !s.setupDismissed) setPage('settings');
     } catch (e) {
@@ -168,9 +203,9 @@ export default function App() {
     let unlisten: (() => void) | undefined;
     void getCurrentWindow()
       .onCloseRequested(async (event) => {
-        if (hasUnsaved) {
+        if (hasUnsaved || settingsDirty || promptUnsaved) {
           event.preventDefault();
-          if (await ask('配方尚未保存，确认关闭应用并放弃修改？')) await getCurrentWindow().destroy();
+          if (await ask('有修改尚未保存，确认关闭应用并放弃这些修改？')) await getCurrentWindow().destroy();
         }
       })
       .then((stop) => {
@@ -182,7 +217,7 @@ export default function App() {
       disposed = true;
       unlisten?.();
     };
-  }, [hasUnsaved, notify]);
+  }, [hasUnsaved, settingsDirty, promptUnsaved, notify]);
   useEffect(() => {
     if (!desktop) return;
     let disposed = false;
@@ -197,7 +232,11 @@ export default function App() {
       setTasks((prev) =>
         [task, ...prev.filter((t) => t.id !== task.id)].sort((a, b) => b.createdAt - a.createdAt),
       );
-      if (task.status === 'completed') {
+      const terminalChange = taskTransitions.current.accept(task);
+      if (terminalChange && task.status === 'failed') {
+        notify(`${task.model.name} 下载失败，请到下载中心重试${task.error ? `：${task.error}` : ''}`, true);
+      }
+      if (terminalChange && task.status === 'completed') {
         void loadLibrary();
         notify(`${task.model.name} 已安装`);
       }
@@ -222,48 +261,47 @@ export default function App() {
       clearTimeout(debounce);
     };
   }, [loadLibrary, loadTasks, notify]);
-  const doSearch = useCallback(
-    async (
-      cursor: string | null = null,
-      stack: (string | null)[] = [null],
-      filters: { baseModel?: string; tag?: string; sort?: string } = {},
-      targetPage = 0,
-    ) => {
-      const seq = ++searchSeq.current;
-      setSearchBusy(true);
-      setSearchError('');
-      setSearched(true);
-      try {
-        const result = await call<SearchResult>('search_models', {
-          query: remoteQuery,
-          baseModel: filters.baseModel ?? remoteBase,
-          tag: filters.tag ?? remoteTag,
-          sort: filters.sort ?? sort,
-          cursor,
-        });
-        if (searchSeq.current === seq) {
-          setSearchResult(result);
-          setCursorStack(rememberCursors(stack, targetPage, result.nextCursor));
-          setRemotePage(targetPage);
-        }
-      } catch (e) {
-        if (searchSeq.current === seq) setSearchError(String(e));
-      } finally {
-        if (searchSeq.current === seq) setSearchBusy(false);
+  const runSearch = useCallback(async (request: SearchRequest) => {
+    const seq = ++searchSeq.current;
+    lastSearch.current = request;
+    committedSearch.current = request.conditions;
+    setSearchBusy(true);
+    setSearchError('');
+    setSearched(true);
+    try {
+      const result = await call<SearchResult>('search_models', {
+        ...request.conditions, cursor: request.cursor,
+      });
+      if (searchSeq.current === seq) {
+        committedSearch.current = request.conditions;
+        setSearchResult(result);
+        setCursorStack(rememberCursors(request.stack, request.page, result.nextCursor));
+        setRemotePage(request.page);
       }
-    },
-    [remoteQuery, remoteBase, remoteTag, sort],
-  );
+    } catch (e) {
+      if (searchSeq.current === seq) setSearchError(String(e));
+    } finally {
+      if (searchSeq.current === seq) setSearchBusy(false);
+    }
+  }, []);
+  const doSearch = (filters: Partial<SearchConditions> = {}) => runSearch(searchRequest({
+    query: remoteQuery, baseModel: remoteBase, tag: remoteTag, sort, ...filters,
+  }));
   const changeRemoteFilters = (filters: { baseModel?: string; tag?: string; sort?: string }) => {
     if (filters.baseModel !== undefined) setRemoteBase(filters.baseModel);
     if (filters.tag !== undefined) setRemoteTag(filters.tag);
     if (filters.sort !== undefined) setSort(filters.sort);
-    // Pass the new selection directly because React state updates apply on the next render.
-    void doSearch(null, [null], filters);
+    // Filter changes operate on the submitted query, not unsubmitted input.
+    void doSearch({ query: committedSearch.current.query, ...filters });
   };
   const navigate = async (next: Page) => {
-    if (hasUnsaved && !(await ask('配方尚未保存，确认离开并放弃修改？'))) return;
-    setHasUnsaved(false);
+    if (next === page && !selected && !detailBusy && !importBusy && !importOpen) return;
+    if (hasUnsaved || settingsDirty) {
+      if (!(await ask('有修改尚未保存，确认离开并放弃这些修改？'))) return;
+    }
+    invalidateDetail();
+    renewPageSession();
+    setImportOpen(false);
     setSelected(null);
     setPage(next);
     setOutputView((previous) => ({ ...previous, selected: null }));
@@ -271,18 +309,27 @@ export default function App() {
     if (next === 'discover' && !searched) void doSearch();
     if (next === 'downloads') void perform(loadTasks);
   };
+  // Toast actions may outlive the detail that created them; consult current dirty state.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const openRemote = async (model: RemoteModel, vid?: number) => {
+    invalidateDetail();
+    const isCurrent = detailGate.current.begin();
     setDetailBusy(true);
     try {
       const full = await call<RemoteModel>('model_details', { id: model.id });
+      if (!isCurrent()) return;
+      renewPageSession();
       setSelected({ model: full, versionId: vid ?? full.versions[0]?.id ?? 0 });
     } catch (e) {
-      notify(String(e), true);
+      if (isCurrent()) notify(String(e), true);
     } finally {
-      setDetailBusy(false);
+      if (isCurrent()) setDetailBusy(false);
     }
   };
   const openLocal = (entry: LibraryEntry, recipeId?: string) => {
+    invalidateDetail();
+    renewPageSession();
     const model: RemoteModel = {
       id: entry.modelId ?? 0,
       name: entry.name,
@@ -296,19 +343,23 @@ export default function App() {
   };
   const resolve = async () => {
     if (!link.trim()) return;
-    if (hasUnsaved && !(await ask('配方尚未保存，确认查看另一个模型？'))) return;
+    if ((hasUnsaved || settingsDirty) && !(await ask('有修改尚未保存，确认查看另一个模型并放弃这些修改？'))) return;
+    invalidateDetail();
+    const isCurrent = detailGate.current.begin();
     setImportBusy(true);
     try {
       const r = await call<{ model: RemoteModel; versionId: number; fileId?: number }>('resolve_link', {
         link,
       });
+      if (!isCurrent()) return;
+      renewPageSession();
       setSelected(r);
       setImportOpen(false);
       setLink('');
     } catch (e) {
-      notify(String(e), true);
+      if (isCurrent()) notify(String(e), true);
     } finally {
-      setImportBusy(false);
+      if (isCurrent()) setImportBusy(false);
     }
   };
   const startScan = async () => {
@@ -359,9 +410,13 @@ export default function App() {
       taskTab === 'all' ||
       (taskTab === 'active'
         ? ['queued', 'downloading', 'verifying', 'paused'].includes(t.status)
-        : t.status === 'completed'),
+        : t.status === taskTab),
   );
-  const closeImport = useCallback(() => setImportOpen(false), []);
+  const failedTasks = tasks.filter((t) => t.status === 'failed').length;
+  const closeImport = useCallback(() => {
+    invalidateDetail();
+    setImportOpen(false);
+  }, [invalidateDetail]);
   const totalSize = library.filter((e) => !e.missing).reduce((a, e) => a + e.size, 0);
   const modelCards = (items: LibraryEntry[]) => (
     <div className="model-grid">
@@ -493,15 +548,14 @@ export default function App() {
                 library={library}
                 settings={settings}
                 notify={notify}
-                onDirtyChange={setHasUnsaved}
-                onClose={() => setSelected(null)}
+                onDirtyChange={detailDirtyChange}
+                onClose={() => { invalidateDetail(); renewPageSession(); setSelected(null); }}
                 backLabel={page === 'outputs' ? '返回我的图像' : undefined}
                 onChanged={loadLibrary}
                 onNeedSettings={() => void navigate('settings')}
                 onDownloaded={async () => {
-                  await loadTasks();
-                  setSelected(null);
-                  setPage('downloads');
+                  notify('已加入下载队列', false, { label: '查看下载', run: () => { void navigateRef.current('downloads'); } });
+                  await perform(loadTasks);
                 }}
               />
             ) : page === 'outputs' ? (
@@ -517,6 +571,7 @@ export default function App() {
             ) : page === 'settings' ? (
               <SettingsPanel
                 settings={settings}
+                onDirtyChange={settingsDirtyChange}
                 onClose={() => void navigate('library')}
                 onSaved={async (s) => {
                   if (s.comfyRoot !== settings.comfyRoot || s.outputDir !== settings.outputDir) {
@@ -736,7 +791,7 @@ export default function App() {
                       </button>
                     </div>
                     {searchError ? (
-                      <ErrorBox message={searchError} retry={() => void doSearch()} />
+                      <ErrorBox message={searchError} retry={() => { if (lastSearch.current) void runSearch(lastSearch.current); }} />
                     ) : searchBusy ? (
                       <div className="model-grid">
                         {Array.from({ length: 8 }, (_, i) => (
@@ -797,7 +852,7 @@ export default function App() {
                     )}
                     {!searchBusy && !searchError && (
                       <DiscoverPagination page={remotePage} count={cursorStack.length} onPage={(target) => {
-                        if (target !== remotePage) void doSearch(cursorStack[target], cursorStack, {}, target);
+                        if (target !== remotePage) void runSearch(searchRequest(committedSearch.current, cursorStack[target], cursorStack, target));
                       }} />
                     )}
                   </>
@@ -805,6 +860,7 @@ export default function App() {
                 {page === 'downloads' && (
                   <>
                     <div className="download-summary">
+                      <span>失败 <strong>{failedTasks}</strong></span>
                       <span>
                         下载中{' '}
                         <strong>
@@ -823,6 +879,7 @@ export default function App() {
                         ['all', '全部任务'],
                         ['active', '进行中'],
                         ['completed', '已完成'],
+                        ['failed', `失败 (${failedTasks})`],
                       ].map(([key, label]) => (
                         <button
                           key={key}
@@ -869,7 +926,7 @@ export default function App() {
                               ) : (
                                 <>
                                   <div className="progress-line">
-                                    <progress value={t.status === 'verifying' ? 100 : progress} max={100} />
+                                    <progress aria-label={`${t.model.name} 下载进度`} value={t.status === 'verifying' ? 100 : progress} max={100} />
                                     <span>{Math.round(progress)}%</span>
                                   </div>
                                   <small>
@@ -946,12 +1003,12 @@ export default function App() {
                     {!shownTasks.length && (
                       <Empty
                         icon={<Download size={32} />}
-                        title="下载队列很安静"
-                        description="选一个喜欢的 LoRA，剩下的交给这里。下载、校验、安装会依次完成。"
+                        title={taskTab === 'active' && failedTasks ? '没有进行中的下载，但有失败任务' : '当前没有下载任务'}
+                        description={taskTab === 'active' && failedTasks ? `${failedTasks} 个任务下载失败，请查看失败原因并重试。` : '选一个喜欢的 LoRA，剩下的交给这里。下载、校验、安装会依次完成。'}
                         action={
-                          <button className="primary" onClick={() => navigate('discover')}>
+                          <button className="primary" onClick={() => taskTab === 'active' && failedTasks ? setTaskTab('failed') : void navigate('discover')}>
                             <Plus size={17} />
-                            发现新的模型
+                            {taskTab === 'active' && failedTasks ? '查看失败任务' : '发现新的模型'}
                           </button>
                         }
                       />
@@ -968,7 +1025,10 @@ export default function App() {
                   </>
                 )}
                 {page === 'recipes' && (
-                  <PromptComposer draft={promptDraft} onChange={setPromptDraft} notify={notify} />
+                  <>
+                    {promptStorageError && <div role="alert"><ErrorBox message={promptStorageError} /></div>}
+                    <PromptComposer draft={promptDraft} onChange={setPromptDraft} notify={notify} />
+                  </>
                 )}
               </>
             )}
@@ -981,6 +1041,8 @@ export default function App() {
             key="addLocalOpen"
             onClose={() => setAddLocalOpen(false)}
             onAdded={(entry) => {
+              invalidateDetail();
+              renewPageSession();
               setLibrary((current) => [entry, ...current.filter((item) => item.id !== entry.id)]);
               setQuery('');
               setBase('');
@@ -1028,6 +1090,7 @@ export default function App() {
           >
             <StateIcon name={toast.error ? 'close' : 'check'} />
             <span>{toast.text}</span>
+            {toast.action && <button onClick={() => { setToast(null); toast.action?.run(); }}>{toast.action.label}</button>}
             <button className="icon-button" onClick={() => setToast(null)} aria-label="关闭提示">
               <X size={15} />
             </button>

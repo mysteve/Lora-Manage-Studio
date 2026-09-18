@@ -1,5 +1,5 @@
 """Download and merge public prompt vocabulary snapshots. Run from repository root."""
-import csv, hashlib, io, json, pathlib, urllib.request, datetime
+import csv, hashlib, io, json, pathlib, urllib.request, urllib.error, datetime
 OUT = pathlib.Path('src/features/prompts/data')
 SOURCES = [
  ('danbooru', 'DominikDoom/a1111-sd-webui-tagcomplete', 'tags/danbooru.csv'),
@@ -9,9 +9,31 @@ SOURCES = [
 ]
 def normal(text):
  return ' '.join(text.lower().replace('_', ' ').replace('-', ' ').split())
+ALLOWED_DOWNLOADS = {
+ ('DominikDoom/a1111-sd-webui-tagcomplete', 'tags/danbooru.csv'): 'https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/danbooru.csv',
+ ('DominikDoom/a1111-sd-webui-tagcomplete', 'tags/e621.csv'): 'https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/e621.csv',
+ ('DominikDoom/a1111-sd-webui-tagcomplete', 'tags/extra-quality-tags.csv'): 'https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/tags/extra-quality-tags.csv',
+ ('Physton/sd-webui-prompt-all-in-one-assets', 'tags/danbooru.zh_CN.csv'): 'https://raw.githubusercontent.com/Physton/sd-webui-prompt-all-in-one-assets/main/tags/danbooru.zh_CN.csv',
+ ('DominikDoom/a1111-sd-webui-tagcomplete', 'LICENSE'): 'https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/main/LICENSE',
+ ('Physton/sd-webui-prompt-all-in-one-assets', 'LICENSE'): 'https://raw.githubusercontent.com/Physton/sd-webui-prompt-all-in-one-assets/main/LICENSE',
+}
+MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+ def redirect_request(self, req, fp, code, msg, headers, newurl):
+  # An allowed source must not redirect requests to another host or local service.
+  raise urllib.error.HTTPError(req.full_url, code, 'Source redirects are not allowed', headers, fp)
+
 def download(repo, path):
- url=f'https://raw.githubusercontent.com/{repo}/main/{path}'
- return url, urllib.request.urlopen(url, timeout=60).read()
+ url = ALLOWED_DOWNLOADS.get((repo, path))
+ if url is None:
+  raise ValueError('Vocabulary source is not allowlisted')
+ opener = urllib.request.build_opener(NoRedirect())
+ with opener.open(url, timeout=60) as response:
+  raw = response.read(MAX_DOWNLOAD_BYTES + 1)
+ if len(raw) > MAX_DOWNLOAD_BYTES:
+  raise ValueError('Vocabulary source exceeds the download size limit')
+ return url, raw
 def build():
  OUT.mkdir(parents=True, exist_ok=True)
  manifest={'retrieved':datetime.date.today().isoformat(), 'sources':[]}

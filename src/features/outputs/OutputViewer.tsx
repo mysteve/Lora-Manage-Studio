@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, FolderOpen, Info } from 'lucide-react';
 import { Modal } from '../../components/ui';
+import { outputEditableSelector, outputKeyAction, outputZoomShortcuts } from './outputKeyboard';
 import './OutputViewer.css';
 
 export function OutputViewer({
@@ -41,19 +42,17 @@ export function OutputViewer({
     const handleKey = (event: KeyboardEvent) => {
       const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
       if (!dialogs[dialogs.length - 1]?.contains(ref.current) || ref.current?.closest('[inert]')) return;
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.defaultPrevented) return;
-      if (
-        event.target instanceof HTMLElement &&
-        event.target.closest('input, textarea, select, [contenteditable="true"]')
-      )
-        return;
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const action = outputKeyAction(
+        event,
+        event.target instanceof Element && !!event.target.closest(outputEditableSelector),
+      );
+      if (action?.type !== 'navigate') return;
       event.preventDefault();
-      if (!busy) onMove(event.key === 'ArrowLeft' ? -1 : 1);
+      if (!busy && (action.direction === -1 ? canPrevious : canNext)) onMove(action.direction);
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [busy, onMove]);
+  }, [busy, canPrevious, canNext, onMove]);
   return (
     <Modal title={name} onClose={onClose} className="output-viewer" animation="fade">
       <div ref={ref} className={`output-viewer-body${showInfo ? ' with-info' : ''}`}>
@@ -84,6 +83,7 @@ export function OutputViewer({
           </aside>
         )}
       </div>
+      <p className="output-viewer-shortcuts">← / → 翻图；{outputZoomShortcuts}；Esc 返回</p>
       <footer className="output-viewer-toolbar">
         <span aria-live="polite">{position > 0 ? `${position} / ${total}` : '正在读取图片列表…'}</span>
         <div className="output-actions">

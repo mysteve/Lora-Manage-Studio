@@ -117,6 +117,14 @@
 .output-viewer-info .associated-lora-card {
   white-space: normal;
 }
+.output-viewer-shortcuts {
+  flex: 0 0 auto;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 .output-viewer-toolbar {
   display: flex;
   flex: 0 0 auto;

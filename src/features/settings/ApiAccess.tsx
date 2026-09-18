@@ -19,9 +19,19 @@ interface Login {
   interval: number;
 }
 
-export function ApiAccess({ notify }: { notify: (message: string, error?: boolean) => void }) {
+export function ApiAccess({
+  notify,
+  onDirtyChange,
+}: {
+  notify: (message: string, error?: boolean) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [token, setToken] = useState('');
+  useEffect(() => {
+    onDirtyChange?.(token.length > 0);
+  }, [token, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const [visible, setVisible] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const closeGuide = useCallback(() => setShowGuide(false), []);

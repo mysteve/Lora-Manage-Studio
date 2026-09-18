@@ -1,5 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { wheelNavigation, wheelPixels, wheelScale } from './outputWheel';
+import {
+  clampOutputOffset,
+  clampOutputScale,
+  outputEditableSelector,
+  outputKeyAction,
+  outputZoomShortcuts,
+} from './outputKeyboard';
 
 export function ZoomableOutput({
   src,
@@ -33,12 +40,46 @@ export function ZoomableOutput({
     const box = button.current;
     const img = image.current;
     if (!box || !img) return;
-    const fit = Math.min(box.clientWidth / img.naturalWidth, box.clientHeight / img.naturalHeight);
-    const maxX = Math.max(0, (img.naturalWidth * fit * scale.current - box.clientWidth) / 2);
-    const maxY = Math.max(0, (img.naturalHeight * fit * scale.current - box.clientHeight) / 2);
-    offset.current = { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+    offset.current = clampOutputOffset(
+      x,
+      y,
+      scale.current,
+      box.clientWidth,
+      box.clientHeight,
+      img.naturalWidth,
+      img.naturalHeight,
+    );
     img.style.transform = `translate(${offset.current.x}px, ${offset.current.y}px) scale(${scale.current})`;
   };
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      const el = button.current;
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (!el || el.closest('[inert]') || !dialogs[dialogs.length - 1]?.contains(el)) return;
+      const action = outputKeyAction(
+        event,
+        event.target instanceof Element && !!event.target.closest(outputEditableSelector),
+      );
+      if (!action || action.type === 'navigate' || !image.current?.naturalWidth) return;
+      // Consume pan keys even at fit size or an edge; never let them turn pages or scroll.
+      event.preventDefault();
+      event.stopPropagation();
+      drag.current = null;
+      if (action.type === 'pan') {
+        if (scale.current > 1) position(offset.current.x + action.x, offset.current.y + action.y);
+        return;
+      }
+      const next = action.type === 'reset' ? 1 : clampOutputScale(scale.current + action.delta);
+      const ratio = next / scale.current;
+      scale.current = next;
+      // Immediate transforms also respect reduced motion without animated intermediate states.
+      position(offset.current.x * ratio, offset.current.y * ratio);
+      setZoomed(next > 1);
+      if (next === 1) wheelPause.current = performance.now() + 450;
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [failed]);
   useEffect(() => {
     const el = button.current;
     if (!el) return;
@@ -82,6 +123,8 @@ export function ZoomableOutput({
       className={`output-zoom${zoomed ? ' is-zoomed' : ''}`}
       aria-label={zoomed ? '缩小图片' : '放大图片'}
       aria-pressed={zoomed}
+      aria-description={outputZoomShortcuts}
+      aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight Shift+ArrowUp Shift+ArrowDown + = - 0"
       onClick={(event) => {
         if (drag.current?.moved) {
           drag.current = null;

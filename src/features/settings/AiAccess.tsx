@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bot, Loader2, RefreshCw, Save } from 'lucide-react';
 import { call, desktop } from '../../lib/api';
 
@@ -9,8 +9,10 @@ interface AiConfig {
 }
 const defaults: AiConfig = { provider: 'deepseek', baseUrl: 'https://api.deepseek.com', model: '' };
 
-export function AiAccess() {
+export function AiAccess({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void } = {}) {
   const [config, setConfig] = useState<AiConfig>(defaults);
+  const [baseline, setBaseline] = useState<AiConfig>(defaults);
+  const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
   const [hasToken, setHasToken] = useState(false);
   const [tokenReady, setTokenReady] = useState(false);
@@ -21,23 +23,40 @@ export function AiAccess() {
   const [message, setMessage] = useState('');
   const generation = useRef(0);
   const mounted = useRef(false);
+  const dirty =
+    token.length > 0 ||
+    (ready &&
+      (config.provider !== baseline.provider ||
+        config.baseUrl !== baseline.baseUrl ||
+        config.model !== baseline.model));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  const loadConfig = useCallback(async () => {
+    const current = ++generation.current;
+    setLoading(true);
+    setError('');
+    try {
+      const value = await call<AiConfig>('get_ai_config');
+      if (!mounted.current || current !== generation.current) return;
+      setConfig(value);
+      setBaseline(value);
+      setReady(true);
+    } catch (e) {
+      if (mounted.current && current === generation.current) setError(String(e));
+    } finally {
+      if (mounted.current && current === generation.current) setLoading(false);
+    }
+  }, []);
   useEffect(() => {
     mounted.current = true;
-    void call<AiConfig>('get_ai_config')
-      .then((value) => {
-        if (mounted.current) {
-          setConfig(value);
-          setReady(true);
-        }
-      })
-      .catch((e) => {
-        if (mounted.current) setError(String(e));
-      });
+    void loadConfig();
     return () => {
       mounted.current = false;
       generation.current++;
     };
-  }, []);
+  }, [loadConfig]);
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
@@ -71,17 +90,17 @@ export function AiAccess() {
       setTokenReady(false);
     }
   };
-  const perform = async (action: string, fn: () => Promise<void>) => {
+  const perform = async (action: string, fn: (isCurrent: () => boolean) => Promise<void>) => {
     setBusy(action);
     setError('');
     setMessage('');
     const current = generation.current;
     try {
-      await fn();
+      await fn(() => mounted.current && current === generation.current);
     } catch (e) {
       if (mounted.current && current === generation.current) setError(String(e));
     } finally {
-      if (mounted.current) setBusy('');
+      if (mounted.current && current === generation.current) setBusy('');
     }
   };
   return (
@@ -93,6 +112,12 @@ export function AiAccess() {
       <p className="field-help">
         配置并保存模型后，可在词句组合中点击 AI 翻译，将当前片段发送到所选服务并显示中文译文。
       </p>
+      {!ready && (
+        <button type="button" disabled={loading} onClick={() => void loadConfig()}>
+          {loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+          {loading ? '正在读取 AI 配置' : '重新读取 AI 配置'}
+        </button>
+      )}
       <fieldset disabled={!ready || !!busy}>
         <div className="settings-two">
           <label className="field">
@@ -145,9 +170,9 @@ export function AiAccess() {
           <button
             disabled={!desktop || !token.trim() || !config.baseUrl.trim()}
             onClick={() =>
-              void perform('token', async () => {
+              void perform('token', async (isCurrent) => {
                 await call('save_ai_token', { config, token });
-                if (!mounted.current) return;
+                if (!isCurrent()) return;
                 setToken('');
                 setHasToken(true);
                 setTokenReady(true);
@@ -160,9 +185,9 @@ export function AiAccess() {
           <button
             disabled={!desktop || !hasToken}
             onClick={() =>
-              void perform('clear', async () => {
+              void perform('clear', async (isCurrent) => {
                 await call('save_ai_token', { config, token: '' });
-                if (!mounted.current) return;
+                if (!isCurrent()) return;
                 setToken('');
                 setHasToken(false);
                 setMessage('当前地址的 AI 密钥已清除');
@@ -195,9 +220,9 @@ export function AiAccess() {
             <button
               disabled={!desktop || !tokenReady || !!token.trim()}
               onClick={() =>
-                void perform('models', async () => {
+                void perform('models', async (isCurrent) => {
                   const ids = await call<string[]>('list_ai_models', { config });
-                  if (!mounted.current) return;
+                  if (!isCurrent()) return;
                   setModels(ids);
                   setConfig((prev) => ({ ...prev, model: prev.model || ids[0] || '' }));
                   setMessage(`已获取 ${ids.length} 个模型，请选择后保存 AI 配置`);
@@ -233,10 +258,11 @@ export function AiAccess() {
             className="primary"
             disabled={!config.baseUrl.trim() || !!token.trim()}
             onClick={() =>
-              void perform('config', async () => {
+              void perform('config', async (isCurrent) => {
                 const saved = await call<AiConfig>('save_ai_config', { config });
-                if (!mounted.current) return;
+                if (!isCurrent()) return;
                 setConfig(saved);
+                setBaseline(saved);
                 setMessage('AI 配置已保存');
               })
             }

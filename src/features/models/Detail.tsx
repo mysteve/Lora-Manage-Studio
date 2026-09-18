@@ -1,5 +1,5 @@
 import { AnimatePresence } from 'motion/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -24,6 +24,16 @@ import { ImageGallery } from './ImageGallery';
 import { TriggerPreviews } from './TriggerPreviews';
 import { blankRecipe, bytes, combine, modelTriggerWords, owner, parseTriggerWords } from '../../lib/utils';
 import type { LibraryEntry, ModelVersion, Recipe, RemoteModel, Settings } from '../../types/models';
+
+// Apply server-generated identity while retaining fields edited after submission.
+export function reconcileSavedRecipe(current: Recipe, submitted: Recipe, result: Recipe): Recipe {
+  return Object.fromEntries(
+    Object.entries(result).map(([key, value]) => [
+      key,
+      current[key as keyof Recipe] === submitted[key as keyof Recipe] ? value : current[key as keyof Recipe],
+    ]),
+  ) as unknown as Recipe;
+}
 
 interface Props {
   selection: { model: RemoteModel; versionId: number; entryId?: string; fileId?: number; recipeId?: string };
@@ -68,6 +78,15 @@ export function Detail({
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [recipe, setRecipe] = useState<Recipe>(blankRecipe(recipeOwner));
   const [saved, setSaved] = useState('');
+  const recipeIdentity = useRef(0);
+  const recipeRequest = useRef(0);
+  const activeOwner = useRef(recipeOwner);
+  activeOwner.current = recipeOwner;
+  const selectRecipe = (value: Recipe) => {
+    recipeIdentity.current++;
+    setRecipe(value);
+    setSaved(JSON.stringify(value));
+  };
   const [recipeLoading, setRecipeLoading] = useState(true);
   const [recipeError, setRecipeError] = useState('');
   const [busy, setBusy] = useState('');
@@ -90,22 +109,30 @@ export function Detail({
     }
   };
   const reloadRecipes = useCallback(async () => {
+    const request = ++recipeRequest.current;
+    recipeIdentity.current++;
+    const isCurrent = () => request === recipeRequest.current && recipeOwner === activeOwner.current;
     setRecipeLoading(true);
     setRecipeError('');
     try {
       const list = await call<Recipe[]>('list_recipes', { owner: recipeOwner });
+      if (!isCurrent()) return;
       const r = list.find((r) => r.id === selection.recipeId) ?? list[0] ?? blankRecipe(recipeOwner);
       setRecipes(list);
       setRecipe(r);
       setSaved(JSON.stringify(r));
     } catch (e) {
-      setRecipeError(String(e));
+      if (isCurrent()) setRecipeError(String(e));
     } finally {
-      setRecipeLoading(false);
+      if (isCurrent()) setRecipeLoading(false);
     }
   }, [recipeOwner, selection.recipeId]);
   useEffect(() => {
     void reloadRecipes();
+    return () => {
+      recipeRequest.current++;
+      recipeIdentity.current++;
+    };
   }, [reloadRecipes]);
   useEffect(() => {
     setFileId(version?.id === selection.versionId ? (selection.fileId ?? 0) : 0);
@@ -119,9 +146,15 @@ export function Detail({
   };
   const save = async () =>
     perform('save', async () => {
-      const result = await call<Recipe>('save_recipe', { recipe });
-      setRecipe(result);
-      setSaved(JSON.stringify(result));
+      const submitted = recipe;
+      const identity = recipeIdentity.current;
+      const request = recipeRequest.current;
+      const result = await call<Recipe>('save_recipe', { recipe: submitted });
+      if (request !== recipeRequest.current || activeOwner.current !== submitted.owner) return;
+      if (identity === recipeIdentity.current) {
+        setRecipe((current) => reconcileSavedRecipe(current, submitted, result));
+        setSaved(JSON.stringify(result));
+      }
       setRecipes((list) => [result, ...list.filter((r) => r.id !== result.id)]);
       notify('配方已保存到本机');
     });
@@ -403,8 +436,7 @@ export function Detail({
                         const id = e.target.value;
                         if (await guard()) {
                           const r = recipes.find((r) => r.id === id) ?? blankRecipe(recipeOwner);
-                          setRecipe(r);
-                          setSaved(JSON.stringify(r));
+                          selectRecipe(r);
                         }
                       }}
                     >
@@ -419,8 +451,7 @@ export function Detail({
                       onClick={async () => {
                         if (await guard()) {
                           const r = { ...blankRecipe(recipeOwner), name: `新配方 ${recipes.length + 1}` };
-                          setRecipe(r);
-                          setSaved(JSON.stringify(r));
+                          selectRecipe(r);
                         }
                       }}
                     >
